@@ -1,0 +1,52 @@
+{
+  "name": "SAVATE OFFICIALS",
+  "short_name": "SavateOfficials",
+  "description": "Professional application for managing official Savate French Boxing scoresheets. Complete CPTE interface with real-time synchronization between judges and official delegate. Features include scoring validation, automatic calculations, WebRTC connectivity, and comprehensive export capabilities for official competitions and training sessions.",
+  "id": "com.savate.officials",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "theme_color": "#2c3e50",
+  "background_color": "#ffffff",
+  "lang": "en",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
