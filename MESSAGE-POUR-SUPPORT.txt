@@ -1,0 +1,29 @@
+Bonjour,
+
+Je vous contacte suite à un problème technique sur mon projet Emergent.
+
+JOB ID : [À trouver en cliquant sur le bouton "i" en haut à droite]
+NOM DU PROJET : judge-webrtc (ou savate-mixer)
+
+SITUATION :
+- L'agent IA a corrigé avec succès mon application HTML
+- Le fichier final existe dans /app/savate-officials-FINAL.html (271 Ko, vérifié MD5: ae49ee8888506d6005cec8aef761679e)
+- L'application a passé 62/62 tests de vérification
+
+PROBLÈME :
+- Les boutons "Preview" et "Deploy" dans mon interface ne fonctionnent pas (aucune fenêtre ne s'ouvre)
+- Je ne vois pas de bouton "Files" ou "Fichiers" dans mon interface
+- Je ne peux donc PAS télécharger mon fichier malgré de nombreuses tentatives
+- Mes crédits ont été consommés sans que je puisse accéder au résultat
+
+DEMANDES :
+1. Pouvez-vous m'envoyer directement le fichier /app/savate-officials-FINAL.html par email ou via un lien de téléchargement ?
+2. Pouvez-vous examiner la compensation de crédits pour cette situation où le travail a été fait mais je ne peux pas y accéder à cause de limitations de l'interface ?
+
+FICHIERS À RÉCUPÉRER :
+- /app/savate-officials-FINAL.html (271 Ko) - PRIORITAIRE
+- /app/SAVATE-OFFICIALS-LIVRAISON-FINALE.zip (55 Ko) - Optionnel
+
+Merci de votre aide rapide.
+
+Cordialement
