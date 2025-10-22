@@ -1,0 +1,113 @@
+================================================================================
+🥊 SAVATE OFFICIALS - INSTRUCTIONS DE COPIER-COLLER
+================================================================================
+
+📋 MÉTHODE SIMPLE POUR RÉCUPÉRER L'APPLICATION
+
+Le fichier SAVATE-APPLICATION.html (271 KB, 6280 lignes) est trop grand pour
+être copié d'un coup. Je l'ai divisé en 9 parties faciles à copier.
+
+================================================================================
+✅ ÉTAPES À SUIVRE
+================================================================================
+
+ÉTAPE 1 : Créer un fichier vide
+--------------------------------
+1. Ouvrez un éditeur de texte (Bloc-notes, Notepad++, VS Code, etc.)
+2. Créez un nouveau fichier vide
+3. Enregistrez-le sous le nom : savate-officials.html
+
+ÉTAPE 2 : Copier les 9 parties
+-------------------------------
+Dans le chat Emergent, demandez à l'agent :
+
+"Affiche-moi le contenu de SAVATE-PART-00"
+
+Puis copiez le contenu et collez-le dans votre fichier.
+
+Répétez pour chaque partie :
+- SAVATE-PART-00 (lignes 1-700)
+- SAVATE-PART-01 (lignes 701-1400)
+- SAVATE-PART-02 (lignes 1401-2100)
+- SAVATE-PART-03 (lignes 2101-2800)
+- SAVATE-PART-04 (lignes 2801-3500)
+- SAVATE-PART-05 (lignes 3501-4200)
+- SAVATE-PART-06 (lignes 4201-4900)
+- SAVATE-PART-07 (lignes 4901-5600)
+- SAVATE-PART-08 (lignes 5601-6280)
+
+⚠️ IMPORTANT : Collez chaque partie À LA SUITE de la précédente, sans saut de
+ligne supplémentaire entre les parties.
+
+ÉTAPE 3 : Enregistrer
+----------------------
+1. Enregistrez le fichier : savate-officials.html
+2. Fermez l'éditeur
+3. Double-cliquez sur le fichier pour l'ouvrir dans votre navigateur
+
+================================================================================
+💡 COMMANDES POUR L'AGENT
+================================================================================
+
+Copiez-collez ces commandes une par une dans le chat :
+
+1. Affiche le contenu de /app/SAVATE-PART-00
+2. Affiche le contenu de /app/SAVATE-PART-01
+3. Affiche le contenu de /app/SAVATE-PART-02
+4. Affiche le contenu de /app/SAVATE-PART-03
+5. Affiche le contenu de /app/SAVATE-PART-04
+6. Affiche le contenu de /app/SAVATE-PART-05
+7. Affiche le contenu de /app/SAVATE-PART-06
+8. Affiche le contenu de /app/SAVATE-PART-07
+9. Affiche le contenu de /app/SAVATE-PART-08
+
+================================================================================
+🎯 ALTERNATIVE PLUS SIMPLE
+================================================================================
+
+Si vous trouvez cette méthode trop longue, voici d'autres options :
+
+OPTION A : Un ami avec compte GitHub
+-------------------------------------
+1. Demandez à un ami/collègue avec GitHub
+2. Il crée un repository
+3. Il utilise "Save to GitHub" dans Emergent
+4. Il vous partage le lien
+5. Vous téléchargez depuis GitHub
+
+OPTION B : Copier directement dans le navigateur
+-------------------------------------------------
+1. Demandez à l'agent d'afficher les lignes 1-6280 du fichier
+2. Copiez tout
+3. Créez un fichier HTML
+4. Collez et enregistrez
+
+OPTION C : Utiliser un service de partage
+------------------------------------------
+Si vous connaissez quelqu'un qui peut accéder à Emergent avec GitHub connecté,
+demandez-lui de sauvegarder et partager le repository.
+
+================================================================================
+📧 BESOIN D'AIDE ?
+================================================================================
+
+Si vous rencontrez des difficultés :
+1. Demandez à l'agent de vous guider étape par étape
+2. Contactez le support Emergent : support@emergent.sh
+3. Rejoignez le Discord : https://discord.gg/VzKfwCXC4A
+
+================================================================================
+✅ VÉRIFICATION FINALE
+================================================================================
+
+Une fois votre fichier savate-officials.html créé :
+
+1. La taille devrait être environ 271 KB
+2. Il devrait contenir 6280 lignes
+3. Il commence par : <!DOCTYPE html>
+4. Il se termine par : </html>
+5. Quand vous l'ouvrez, vous devez voir "SAVATE OFFICIALS" en gros titre
+
+Bon courage ! 🥊
+
+================================================================================
