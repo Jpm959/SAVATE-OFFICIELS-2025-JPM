@@ -1,0 +1,700 @@
+                peerId: null,
+                lastSyncTime: Date.now(),
+                syncCount: 0,
+                syncErrors: 0,
+                reconnectAttempts: 0,
+                maxReconnectAttempts: 5,
+                connectionQuality: 'excellent',
+                latency: 0
+            },
+            session: {
+                id: '',
+                code: '',
+                fightType: 'assaut',
+                judgeCount: 3,
+                rounds: 3,
+                initialized: false,
+                role: '',
+                judgeId: null,
+                judgeName: '',
+                judgeNumber: '',
+                deviceId: 'device_' + Math.random().toString(36).substr(2, 9),
+                startTime: null,
+                status: 'inactive'
+            },
+            data: {
+                judges: {},
+                fighters: { red: '', blue: '' },
+                connectedDevices: new Set(),
+                changeLog: [],
+                results: null
+            },
+            monitoring: {
+                syncMetrics: {
+                    totalSync: 0,
+                    syncErrors: 0,
+                    uptimeStart: Date.now()
+                }
+            }
+        };
+
+        // Variables CPTE (identiques au fichier SO J2 BONNE)
+        const warnings = { red: {}, blue: {} };
+        const comptes = { red: {}, blue: {} };
+        const abandons = { red: false, blue: false };
+        let actionHistory = [];
+        let delegateActionHistory = []; // Historique des actions du délégué
+        let activeRounds = 3;
+        
+        // =====================
+        // UTILITAIRES
+        // =====================
+        
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function generateUniqueCode() {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+        }
+
+        function getFightTypeLabel(type) {
+            const labels = {
+                'assaut': 'Assaut (3 reprises)',
+                'combat2espoirs': 'Combat 2ème Série Espoirs (3 reprises)',
+                'combat2seniors': 'Combat 2ème Série Seniors (4 reprises)', 
+                'combat1juniors': 'Combat 1ère Série Juniors (4 reprises)',
+                'combat1seniors': 'Combat 1ère Série Seniors (5 reprises)'
+            };
+            return labels[type] || type;
+        }
+
+        function getRoundsFromFightType(fightType) {
+            switch(fightType) {
+                case 'assaut':
+                case 'combat2espoirs':
+                    return 3;
+                case 'combat2seniors':
+                case 'combat1juniors':
+                    return 4;
+                case 'combat1seniors':
+                    return 5;
+                default:
+                    return 3;
+            }
+        }
+
+        function isCombat() {
+            return app.session.fightType !== 'assaut';
+        }
+
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleTimeString('fr-FR');
+        }
+
+        function formatDate(timestamp) {
+            return new Date(timestamp).toISOString().split('T')[0];
+        }
+
+        function safeGetElement(id) {
+            return document.getElementById(id);
+        }
+
+        function showNotification(message, type = 'info', duration = 5000) {
+            const notification = document.createElement('div');
+            notification.className = `message ${type}`;
+            notification.innerHTML = `
+                ${message}
+                <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; float: right; cursor: pointer;">×</button>
+            `;
+            
+            const container = document.querySelector('.app-container');
+            container.insertBefore(notification, container.firstChild);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, duration);
+        }
+
+        // =====================
+        // GESTION HISTORIQUE DÉLÉGUÉ
+        // =====================
+
+        function saveDelegateState(actionType, actionData = {}) {
+            const state = {
+                timestamp: Date.now(),
+                actionType: actionType,
+                actionData: actionData,
+                session: JSON.parse(JSON.stringify(app.session)),
+                fighters: JSON.parse(JSON.stringify(app.data.fighters)),
+                judges: JSON.parse(JSON.stringify(app.data.judges)),
+                results: JSON.parse(JSON.stringify(app.data.results))
+            };
+            
+            delegateActionHistory.push(state);
+            
+            // Limiter l'historique à 20 actions pour éviter la surcharge mémoire
+            if (delegateActionHistory.length > 20) {
+                delegateActionHistory.shift();
+            }
+            
+            // Activer le bouton annuler
+            const undoButton = document.getElementById('delegateUndoButton');
+            if (undoButton) {
+                undoButton.disabled = false;
+                undoButton.textContent = `↶ ANNULER: ${actionType}`;
+            }
+            
+            console.log(`💾 État délégué sauvegardé: ${actionType}`, state);
+        }
+
+        function undoDelegateLastAction() {
+            if (delegateActionHistory.length === 0) {
+                showNotification('❌ Aucune action à annuler', 'warning');
+                return;
+            }
+            
+            const previousState = delegateActionHistory.pop();
+            
+            console.log(`↶ Annulation action délégué: ${previousState.actionType}`);
+            
+            // Restaurer l'état précédent
+            app.session = previousState.session;
+            app.data.fighters = previousState.fighters;
+            app.data.judges = previousState.judges;
+            app.data.results = previousState.results;
+            
+            // Envoyer la restauration aux juges connectés
+            sendToAll({
+                type: 'delegate_undo_action',
+                data: {
+                    actionType: previousState.actionType,
+                    session: app.session,
+                    fighters: app.data.fighters,
+                    timestamp: Date.now()
+                }
+            }, 'high');
+            
+            // Mettre à jour l'interface délégué
+            updateDelegateInterface();
+            
+            // Mettre à jour le bouton annuler
+            const undoButton = document.getElementById('delegateUndoButton');
+            if (undoButton) {
+                if (delegateActionHistory.length === 0) {
+                    undoButton.disabled = true;
+                    undoButton.textContent = '↶ ANNULER DERNIÈRE ACTION';
+                } else {
+                    const nextAction = delegateActionHistory[delegateActionHistory.length - 1];
+                    undoButton.textContent = `↶ ANNULER: ${nextAction.actionType}`;
+                }
+            }
+            
+            showNotification(`↶ Action "${previousState.actionType}" annulée avec succès`, 'success');
+        }
+
+        function updateDelegateInterface() {
+            // Mettre à jour les noms des tireurs
+            const redName = document.getElementById('fighterRedName');
+            const blueName = document.getElementById('fighterBlueName');
+            if (redName) redName.value = app.data.fighters.red || '';
+            if (blueName) blueName.value = app.data.fighters.blue || '';
+            
+            // Mettre à jour le monitoring et les tableaux
+            if (app.session.role === 'delegate' && app.session.initialized) {
+                updateJudgeMonitoring();
+                updateRecapTable();
+                updateFinalResult();
+            }
+        }
+
+        // =====================
+        // WEBRTC SYSTÈME
+        // =====================
+        
+        function waitForPeerJS(maxWaitTime = 15000) {
+            return new Promise((resolve, reject) => {
+                let elapsed = 0;
+                const checkInterval = 100;
+                
+                const checkPeerJS = () => {
+                    if (typeof Peer !== 'undefined') {
+                        console.log('✅ PeerJS chargé');
+                        resolve();
+                        return;
+                    }
+                    
+                    elapsed += checkInterval;
+                    if (elapsed >= maxWaitTime) {
+                        reject(new Error('PeerJS timeout'));
+                        return;
+                    }
+                    
+                    setTimeout(checkPeerJS, checkInterval);
+                };
+                
+                checkPeerJS();
+            });
+        }
+
+        function initializeWebRTC() {
+            return new Promise((resolve, reject) => {
+                waitForPeerJS().then(() => {
+                    try {
+                        const baseId = app.session.role === 'delegate' ? 
+                            `delegate_${app.session.code}` : 
+                            `judge_${app.session.code}_${Date.now()}`;
+                        
+                        console.log('🌐 Initialisation WebRTC:', baseId);
+                        
+                        app.webrtc.peer = new Peer(baseId, {
+                            config: {
+                                'iceServers': [
+                                    { urls: 'stun:stun.l.google.com:19302' },
+                                    { urls: 'stun:stun1.l.google.com:19302' }
+                                ]
+                            }
+                        });
+
+                        app.webrtc.peer.on('open', function(id) {
+                            console.log('✅ Peer WebRTC créé:', id);
+                            app.webrtc.peerId = id;
+                            updateSyncIndicator('Connecté WebRTC', 'connected');
+                            
+                            if (app.session.role === 'delegate') {
+                                app.webrtc.isHost = true;
+                            }
+                            
+                            resolve(id);
+                        });
+
+                        app.webrtc.peer.on('connection', function(conn) {
+                            console.log('📞 Connexion entrante:', conn.peer);
+                            handleIncomingConnection(conn);
+                        });
+
+                        app.webrtc.peer.on('error', function(err) {
+                            console.error('❌ Erreur WebRTC:', err);
+                            updateSyncIndicator('Erreur: ' + err.type, 'offline');
+                            
+                            if (err.type === 'peer-unavailable') {
+                                showNotification('❌ Session introuvable. Vérifiez le code.', 'error');
+                            } else {
+                                showNotification('❌ Erreur WebRTC: ' + err.type, 'error');
+                            }
+                            
+                            reject(err);
+                        });
+
+                        setTimeout(() => {
+                            if (!app.webrtc.peerId) {
+                                reject(new Error('Timeout WebRTC'));
+                            }
+                        }, 15000);
+
+                    } catch (error) {
+                        console.error('❌ Erreur init WebRTC:', error);
+                        reject(error);
+                    }
+                }).catch(error => {
+                    console.error('❌ PeerJS indisponible:', error);
+                    updateSyncIndicator('❌ PeerJS indisponible', 'offline');
+                    showNotification('❌ Impossible de charger PeerJS', 'error');
+                    reject(error);
+                });
+            });
+        }
+
+        function handleIncomingConnection(conn) {
+            app.webrtc.connections.set(conn.peer, conn);
+            
+            conn.on('open', function() {
+                console.log('✅ Connexion établie:', conn.peer);
+                updatePeersList();
+                
+                if (app.session.role === 'delegate') {
+                    sendSessionDataToNewPeer(conn);
+                }
+            });
+
+            conn.on('data', function(data) {
+                handleWebRTCMessage(data, conn.peer, conn);
+            });
+
+            conn.on('close', function() {
+                console.log('🔌 Connexion fermée:', conn.peer);
+                app.webrtc.connections.delete(conn.peer);
+                updatePeersList();
+                cleanupJudgeData(conn.peer);
+            });
+
+            conn.on('error', function(err) {
+                console.error('❌ Erreur connexion:', err);
+                app.webrtc.connections.delete(conn.peer);
+                updatePeersList();
+            });
+        }
+
+        function connectToPeer(peerId) {
+            return new Promise((resolve, reject) => {
+                try {
+                    console.log('🔗 Connexion au peer:', peerId);
+                    updateSyncIndicator('Connexion...', 'syncing');
+                    
+                    const conn = app.webrtc.peer.connect(peerId, {
+                        reliable: true,
+                        serialization: 'json'
+                    });
+                    
+                    conn.on('open', function() {
+                        console.log('✅ Connecté au délégué:', peerId);
+                        app.webrtc.connections.set(peerId, conn);
+                        updateSyncIndicator('Connecté', 'connected');
+                        updatePeersList();
+                        
+                        sendJudgeConnectionData(conn);
+                        resolve(conn);
+                    });
+
+                    conn.on('data', function(data) {
+                        handleWebRTCMessage(data, peerId, conn);
+                    });
+
+                    conn.on('close', function() {
+                        console.log('🔌 Connexion fermée');
+                        app.webrtc.connections.delete(peerId);
+                        updateSyncIndicator('Déconnecté', 'offline');
+                        updatePeersList();
+                    });
+
+                    conn.on('error', function(err) {
+                        console.error('❌ Erreur connexion:', err);
+                        updateSyncIndicator('Erreur', 'offline');
+                        reject(err);
+                    });
+
+                    setTimeout(() => {
+                        if (!app.webrtc.connections.has(peerId)) {
+                            reject(new Error('Timeout connexion'));
+                        }
+                    }, 20000);
+
+                } catch (error) {
+                    console.error('❌ Erreur connectToPeer:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        function sendToAll(message, priority = 'normal') {
+            const enrichedMessage = {
+                ...message,
+                timestamp: Date.now(),
+                from: app.webrtc.peerId,
+                fromRole: app.session.role,
+                sessionCode: app.session.code,
+                priority: priority
+            };
+            
+            let sentCount = 0;
+            let errorCount = 0;
+            
+            app.webrtc.connections.forEach((conn, peerId) => {
+                if (conn.open) {
+                    try {
+                        conn.send(enrichedMessage);
+                        sentCount++;
+                    } catch (error) {
+                        console.error('❌ Erreur envoi:', peerId, error);
+                        errorCount++;
+                    }
+                } else {
+                    errorCount++;
+                }
+            });
+            
+            console.log(`📤 Message envoyé à ${sentCount} peers:`, message.type);
+            return { sent: sentCount, errors: errorCount };
+        }
+
+        function handleWebRTCMessage(message, fromPeer, conn) {
+            console.log('📥 Message reçu:', message.type, 'de', fromPeer);
+            
+            try {
+                switch (message.type) {
+                    case 'judge_connection':
+                        handleJudgeConnection(message.data, fromPeer);
+                        break;
+                    case 'judge_data':
+                        receiveJudgeData(message.data, message);
+                        break;
+                    case 'session_data':
+                        receiveSessionData(message.data);
+                        break;
+                    case 'fighter_names':
+                        receiveFighterNames(message.data);
+                        break;
+                    case 'partial_reset_command':
+                        if (app.session.role === 'judge') {
+                            console.log('🔥 Commande de réinitialisation partielle reçue du délégué');
+                            app.data.fighters = message.data.fighters;
+                            updateFighterNamesInInterface();
+                            resetJudgeFormData();
+                            showNotification('🔄 Réinitialisation effectuée par le délégué', 'warning');
+                        }
+                        break;
+                    case 'delegate_undo_action':
+                        if (app.session.role === 'judge') {
+                            console.log('↶ Annulation d\'action reçue du délégué:', message.data.actionType);
+                            if (message.data.session) {
+                                const currentJudgeName = app.session.judgeName;
+                                const currentJudgeNumber = app.session.judgeNumber;
+                                const currentJudgeId = app.session.judgeId;
+                                const currentRole = app.session.role;
+                                
+                                app.session = { ...app.session, ...message.data.session };
+                                
+                                app.session.judgeName = currentJudgeName;
+                                app.session.judgeNumber = currentJudgeNumber;
+                                app.session.judgeId = currentJudgeId;
+                                app.session.role = currentRole;
+                            }
+                            
+                            if (message.data.fighters) {
+                                app.data.fighters = message.data.fighters;
+                                updateFighterNamesInInterface();
+                            }
+                            
+                            updateJudgeRounds();
+                            createJudgeTableStructure();
+                            
+                            showNotification(`↶ Action "${message.data.actionType}" annulée par le délégué`, 'info');
+                        }
+                        break;
+                    case 'session_reset_complete':
+                        if (app.session.role === 'judge') {
+                            console.log('🔥 Session réinitialisée par le délégué');
+                            showNotification('⚠️ Session réinitialisée par le délégué. Déconnexion...', 'warning');
+                            setTimeout(() => {
+                                resetJudgeConnection();
+                            }, 2000);
+                        }
+                        break;
+                    case 'judge_disconnect':
+                        if (app.session.role === 'delegate') {
+                            console.log('🔥 Juge déconnecté:', message.data);
+                            const judgeKey = `judge${message.data.judgeId}`;
+                            
+                            if (app.data.judges[judgeKey]) {
+                                app.data.judges[judgeKey].connected = false;
+                                app.data.judges[judgeKey].lastUpdate = Date.now();
+                                updateJudgeMonitoring();
+                                showNotification(`🚪 ${message.data.name} s'est déconnecté`, 'info');
+                            }
+                        }
+                        break;
+                    default:
+                        console.warn('⚠️ Type message non reconnu:', message.type);
+                }
+            } catch (error) {
+                console.error('❌ Erreur traitement message:', error);
+            }
+        }
+
+        function handleJudgeConnection(connectionData, fromPeer) {
+            console.log('📥 Connexion juge:', connectionData);
+            const judgeKey = `judge${connectionData.judgeId}`;
+            
+            if (!app.data.judges[judgeKey]) {
+                app.data.judges[judgeKey] = {
+                    id: connectionData.judgeId,
+                    scores: {},
+                    warnings: { red: {}, blue: {} },
+                    comptes: { red: {}, blue: {} },
+                    abandons: { red: false, blue: false },
+                    bonuses: { red: 0, blue: 0 },
+                    totalRed: 0,
+                    totalBlue: 0,
+                    result: 'En attente...'
+                };
+            }
+            
+            Object.assign(app.data.judges[judgeKey], {
+                connected: connectionData.connected,
+                name: connectionData.name || 'Nom non défini',
+                number: connectionData.number || 'Non défini',
+                peerId: fromPeer,
+                lastUpdate: Date.now(),
+                connectionTime: Date.now()
+            });
+            
+            if (app.session.role === 'delegate') {
+                updateJudgeMonitoring();
+                updateRecapTable();
+                updateFinalResult();
+            }
+            
+            showNotification(`🎉 Juge ${connectionData.judgeId} (${connectionData.name}) connecté!`, 'success');
+        }
+
+        function receiveJudgeData(judgeData, fullMessage) {
+            console.log('📥 Données juge reçues:', judgeData);
+            const judgeKey = `judge${judgeData.judgeId}`;
+            
+            if (!app.data.judges[judgeKey]) {
+                app.data.judges[judgeKey] = {};
+            }
+            
+            app.data.judges[judgeKey] = {
+                ...app.data.judges[judgeKey],
+                ...judgeData,
+                lastUpdate: Date.now(),
+                syncSource: 'webrtc'
+            };
+            
+            if (app.session.role === 'delegate') {
+                updateJudgeMonitoring();
+                updateRecapTable();
+                updateFinalResult();
+            }
+            
+            showNotification(`📡 Juge ${judgeData.judgeId} synchronisé`, 'success', 3000);
+        }
+
+        function receiveSessionData(sessionData) {
+            console.log('📥 Données session:', sessionData);
+            
+            if (sessionData.session) {
+                const currentJudgeName = app.session.judgeName;
+                const currentJudgeNumber = app.session.judgeNumber;
+                
+                app.session = { ...app.session, ...sessionData.session };
+                
+                if (currentJudgeName && app.session.role === 'judge') {
+                    app.session.judgeName = currentJudgeName;
+                }
+                if (currentJudgeNumber && app.session.role === 'judge') {
+                    app.session.judgeNumber = currentJudgeNumber;
+                }
+            }
+            
+            if (sessionData.fighters) {
+                app.data.fighters = sessionData.fighters;
+                updateFighterNamesInInterface();
+            }
+            
+            if (sessionData.judges) {
+                app.data.judges = sessionData.judges;
+            }
+            
+            if (app.session.role === 'judge') {
+                updateJudgeRounds();
+                createJudgeTableStructure();
+                updateFighterNamesInInterface();
+            }
+        }
+
+        function receiveFighterNames(fighterData) {
+            console.log('📥 Noms tireurs:', fighterData);
+            app.data.fighters = { ...app.data.fighters, ...fighterData };
+            updateFighterNamesInInterface();
+        }
+
+        function sendJudgeConnectionData(conn) {
+            try {
+                const connectionData = {
+                    judgeId: app.session.judgeId,
+                    name: app.session.judgeName,
+                    number: app.session.judgeNumber,
+                    connected: true,
+                    timestamp: Date.now(),
+                    deviceId: app.session.deviceId
+                };
+                
+                conn.send({
+                    type: 'judge_connection',
+                    data: connectionData,
+                    timestamp: Date.now(),
+                    from: app.webrtc.peerId,
+                    sessionCode: app.session.code
+                });
+                
+                console.log('📤 Données connexion juge envoyées');
+            } catch (error) {
+                console.error('❌ Erreur envoi connexion:', error);
+            }
+        }
+
+        function sendSessionDataToNewPeer(conn) {
+            try {
+                const sessionData = {
+                    session: {
+                        id: app.session.id,
+                        code: app.session.code,
+                        fightType: app.session.fightType,
+                        judgeCount: app.session.judgeCount,
+                        rounds: app.session.rounds,
+                        status: app.session.status
+                    },
+                    fighters: app.data.fighters,
+                    judges: app.data.judges,
+                    timestamp: Date.now()
+                };
+                
+                conn.send({
+                    type: 'session_data',
+                    data: sessionData,
+                    timestamp: Date.now(),
+                    from: app.webrtc.peerId,
+                    sessionCode: app.session.code
+                });
+                
+                console.log('📤 Données session envoyées');
+            } catch (error) {
+                console.error('❌ Erreur envoi session:', error);
+            }
+        }
+
+        function updateSyncIndicator(status = null, type = null) {
+            const indicator = document.getElementById('syncIndicator');
+            const statusSpan = document.getElementById('syncStatus');
+            const devicesCount = document.getElementById('devicesCount');
+            const icon = document.getElementById('syncIcon');
+            
+            if (indicator && !indicator.classList.contains('hidden')) {
+                if (status) {
+                    statusSpan.textContent = status;
+                }
+                
+                if (type) {
+                    indicator.className = `sync-indicator ${type}`;
+                    
+                    switch(type) {
+                        case 'connected':
+                            icon.textContent = '✅';
+                            break;
+                        case 'syncing':
+                            icon.textContent = '🔄';
+                            break;
+                        case 'offline':
+                            icon.textContent = '❌';
+                            break;
+                        default:
+                            icon.textContent = '⚡';
+                    }
+                }
+                
+                const deviceCount = app.data.connectedDevices.size;
+                const judgeCount = Object.keys(app.data.judges).filter(k => app.data.judges[k].connected).length;
+                devicesCount.textContent = `${deviceCount} appareils • ${judgeCount} juges`;
+            }
+        }
+
+        function updatePeersList() {
+            app.data.connectedDevices.clear();
+            app.webrtc.connections.forEach((conn, peerId) => {
+                if (conn.open) {
+                    app.data.connectedDevices.add(peerId);
+                }

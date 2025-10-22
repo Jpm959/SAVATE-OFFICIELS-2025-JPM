@@ -1,0 +1,681 @@
+                for (let color of ['red', 'blue']) {
+                    for (let i = 1; i <= 5; i++) {
+                        updateJudgeWarningDisplay(color, i);
+                        updateJudgeCompteDisplay(color, i);
+                    }
+                }
+                
+                // 10. Cacher tous les messages d'alerte
+                const messages = ['judgeDisqualificationMessage', 'judgeAbandonMessage', 'judgeEqualityWarning'];
+                messages.forEach(id => {
+                    const element = safeGetElement(id);
+                    if (element) element.style.display = 'none';
+                });
+                
+                // 11. Réactiver tous les contrôles
+                document.querySelectorAll('.score-select').forEach(select => {
+                    select.disabled = false;
+                    select.classList.remove('locked');
+                });
+                document.querySelectorAll('.score-input').forEach(input => {
+                    input.disabled = false;
+                });
+                document.querySelectorAll('.warning-cell').forEach(cell => {
+                    cell.style.pointerEvents = 'auto';
+                });
+                document.querySelectorAll('.compte-cell').forEach(cell => {
+                    cell.style.pointerEvents = 'auto';
+                });
+                
+                // 12. Synchroniser la réinitialisation
+                syncJudgeData('delegate_reset_applied');
+                
+            } catch (error) {
+                console.error('Erreur lors de la réinitialisation:', error);
+                showNotification('❌ Erreur lors de la réinitialisation.', 'error');
+            }
+        }
+
+        function resetJudgeConnection() {
+            // Fermer toutes les connexions WebRTC
+            if (app.webrtc.peer) {
+                app.webrtc.peer.destroy();
+            }
+            
+            // Réinitialiser les variables de session (garder les infos personnelles pour faciliter la reconnexion)
+            const savedJudgeName = app.session.judgeName;
+            const savedJudgeNumber = app.session.judgeNumber;
+            
+            app.webrtc = {
+                peer: null,
+                connections: new Map(),
+                isHost: false,
+                peerId: null,
+                lastSyncTime: Date.now(),
+                syncCount: 0,
+                syncErrors: 0,
+                reconnectAttempts: 0,
+                maxReconnectAttempts: 5,
+                connectionQuality: 'excellent',
+                latency: 0
+            };
+            
+            app.session = {
+                id: '',
+                code: '',
+                fightType: 'assaut',
+                judgeCount: 3,
+                rounds: 3,
+                initialized: false,
+                role: '',
+                judgeId: null,
+                judgeName: savedJudgeName, // Garder le nom pour faciliter la reconnexion
+                judgeNumber: savedJudgeNumber, // Garder le numéro
+                deviceId: 'device_' + Math.random().toString(36).substr(2, 9),
+                startTime: null,
+                status: 'inactive'
+            };
+            
+            // Réinitialiser les données CPTE
+            Object.assign(warnings, { red: {}, blue: {} });
+            Object.assign(comptes, { red: {}, blue: {} });
+            Object.assign(abandons, { red: false, blue: false });
+            actionHistory = [];
+            activeRounds = 3;
+            
+            // Retourner à l'écran de sélection juge avec les champs pré-remplis
+            document.getElementById('judgeInterface').classList.add('hidden');
+            document.getElementById('judgeAccessSection').classList.remove('hidden');
+            document.getElementById('syncIndicator').classList.add('hidden');
+            
+            // Pré-remplir les champs avec les données sauvegardées
+            if (savedJudgeName) {
+                document.getElementById('judgeNameInput').value = savedJudgeName;
+            }
+            if (savedJudgeNumber) {
+                document.getElementById('judgeNumberInput').value = savedJudgeNumber;
+            }
+            
+            showNotification('🚪 Vous êtes maintenant déconnecté. Entrez un code de session pour vous reconnecter.', 'info');
+        }
+
+        // =====================
+        // SYNCHRONISATION WEBRTC JUGE
+        // =====================
+
+        function syncJudgeData(actionType = 'general_sync', focusData = null) {
+            if (app.session.role !== 'judge' || !app.webrtc.connections.size) {
+                console.warn('⚠️ Pas de connexion WebRTC pour synchroniser');
+                return;
+            }
+            
+            // Construire les données complètes de juge
+            const judgeScores = {};
+            for (let i = 1; i <= activeRounds; i++) {
+                const redValue = parseInt(safeGetElement(`judgeRed${i}`)?.value) || 0;
+                const blueValue = parseInt(safeGetElement(`judgeBlue${i}`)?.value) || 0;
+                judgeScores[i] = { red: redValue, blue: blueValue };
+            }
+            
+            const redBonusValue = parseInt(safeGetElement('judgeRedBonus')?.value) || 0;
+            const blueBonusValue = parseInt(safeGetElement('judgeBlueBonus')?.value) || 0;
+            
+            // Calculer les totaux pour l'affichage délégué
+            let redSubtotal1 = 0, blueSubtotal1 = 0;
+            for (let i = 1; i <= activeRounds; i++) {
+                redSubtotal1 += judgeScores[i].red || 0;
+                blueSubtotal1 += judgeScores[i].blue || 0;
+            }
+            
+            let redWarningTotal = 0, blueWarningTotal = 0;
+            for (let round in warnings.red) {
+                if (round <= activeRounds) {
+                    redWarningTotal += warnings.red[round] || 0;
+                }
+            }
+            for (let round in warnings.blue) {
+                if (round <= activeRounds) {
+                    blueWarningTotal += warnings.blue[round] || 0;
+                }
+            }
+            
+            let redCompteTotal = 0, blueCompteTotal = 0;
+            if (isCombat()) {
+                for (let round in comptes.red) {
+                    if (round <= activeRounds) {
+                        redCompteTotal += comptes.red[round] || 0;
+                    }
+                }
+                for (let round in comptes.blue) {
+                    if (round <= activeRounds) {
+                        blueCompteTotal += comptes.blue[round] || 0;
+                    }
+                }
+            }
+            
+            const redSubtotal2 = redSubtotal1 - redWarningTotal - redCompteTotal;
+            const blueSubtotal2 = blueSubtotal1 - blueWarningTotal - blueCompteTotal;
+            const redTotal = redSubtotal2 + redBonusValue;
+            const blueTotal = blueSubtotal2 + blueBonusValue;
+            
+            // Déterminer le résultat
+            let result = 'En cours...';
+            if (abandons.red && !abandons.blue) {
+                result = `Victoire BLEU par abandon`;
+            } else if (abandons.blue && !abandons.red) {
+                result = `Victoire ROUGE par abandon`;
+            } else if (abandons.red && abandons.blue) {
+                result = `Double abandon`;
+            } else if (areAllJudgeRoundsCompleted()) {
+                if (redTotal > blueTotal) {
+                    result = `Victoire ROUGE (${redTotal} - ${blueTotal})`;
+                } else if (blueTotal > redTotal) {
+                    result = `Victoire BLEU (${blueTotal} - ${redTotal})`;
+                } else {
+                    result = `Égalité (${redTotal} - ${blueTotal})`;
+                }
+            }
+            
+            const syncData = {
+                judgeId: app.session.judgeId,
+                name: app.session.judgeName,
+                number: app.session.judgeNumber,
+                scores: judgeScores,
+                warnings: warnings,
+                comptes: comptes,
+                abandons: abandons,
+                bonuses: { red: redBonusValue, blue: blueBonusValue },
+                totalRed: redTotal,
+                totalBlue: blueTotal,
+                result: result,
+                lastAction: actionType,
+                focusRound: focusData ? focusData.round : null,
+                focusData: focusData,
+                timestamp: Date.now(),
+                connected: true
+            };
+            
+            const syncResult = sendToAll({
+                type: 'judge_data',
+                data: syncData
+            }, 'high');
+            
+            console.log('📡 Données juge synchronisées:', syncData);
+            showNotification(`📡 Synchronisation ${actionType} envoyée (${syncResult.sent} connexions)`, 'success', 2000);
+            
+            return syncResult;
+        }
+
+        // =====================
+        // EXPORT JUGE
+        // =====================
+        
+        function exportJudgeToExcel() {
+            try {
+                // Créer un tableau de données
+                const data = [];
+                
+                // En-tête
+                data.push(['FICHE DE JUGE - SAVATE BOXE FRANÇAISE']);
+                data.push([]);
+                
+                // Type de rencontre
+                const fightType = getFightTypeLabel(app.session.fightType);
+                data.push(['Type de rencontre:', fightType]);
+                data.push([]);
+                
+                // Informations du juge
+                data.push(['Juge:', app.session.judgeName || 'Non renseigné']);
+                data.push(['N° Juge:', app.session.judgeNumber || 'Non renseigné']);
+                data.push([]);
+                
+                // Informations des tireurs
+                data.push(['TIREUR COIN ROUGE:', app.data.fighters.red || 'Non renseigné']);
+                data.push(['TIREUR COIN BLEU:', app.data.fighters.blue || 'Non renseigné']);
+                data.push([]);
+                
+                // Statut d'abandon
+                if (abandons.red) data.push(['ABANDON COIN ROUGE']);
+                if (abandons.blue) data.push(['ABANDON COIN BLEU']);
+                if (abandons.red || abandons.blue) data.push([]);
+                
+                // Tableau des scores
+                if (isCombat()) {
+                    data.push(['', 'COIN ROUGE', '', '', '', 'COIN BLEU', '', '', '']);
+                    data.push(['Reprise', 'Reprise', 'NOTE', 'AVT', 'CPTE', 'Reprise', 'NOTE', 'AVT', 'CPTE']);
+                } else {
+                    data.push(['', 'COIN ROUGE', '', '', 'COIN BLEU', '', '']);
+                    data.push(['Reprise', 'Reprise', 'NOTE', 'AVT', 'Reprise', 'NOTE', 'AVT']);
+                }
+                
+                // Scores par reprise
+                for (let i = 1; i <= activeRounds; i++) {
+                    const redScore = safeGetElement(`judgeRed${i}`)?.value || '-';
+                    const blueScore = safeGetElement(`judgeBlue${i}`)?.value || '-';
+                    const redAvt = warnings.red[i] ? 'A'.repeat(warnings.red[i]) : '';
+                    const blueAvt = warnings.blue[i] ? 'A'.repeat(warnings.blue[i]) : '';
+                    
+                    if (isCombat()) {
+                        const redCpte = comptes.red[i] ? 'C'.repeat(comptes.red[i]) : '';
+                        const blueCpte = comptes.blue[i] ? 'C'.repeat(comptes.blue[i]) : '';
+                        data.push([`Reprise ${i}`, i, redScore, redAvt, redCpte, i, blueScore, blueAvt, blueCpte]);
+                    } else {
+                        data.push([`Reprise ${i}`, i, redScore, redAvt, i, blueScore, blueAvt]);
+                    }
+                }
+                
+                data.push([]);
+                
+                // Totaux
+                if (isCombat()) {
+                    data.push(['Sous TOTAUX 1', '', safeGetElement('judgeRedSubtotal1')?.textContent || '0', '', '', '', safeGetElement('judgeBlueSubtotal1')?.textContent || '0', '', '']);
+                    data.push(['Avertissements', '', safeGetElement('judgeRedWarnings')?.textContent || '0', '', '', '', safeGetElement('judgeBlueWarnings')?.textContent || '0', '', '']);
+                    data.push(['Compte', '', safeGetElement('judgeRedComptes')?.textContent || '0', '', '', '', safeGetElement('judgeBlueComptes')?.textContent || '0', '', '']);
+                    data.push(['Sous TOTAUX 2', '', safeGetElement('judgeRedSubtotal2')?.textContent || '0', '', '', '', safeGetElement('judgeBlueSubtotal2')?.textContent || '0', '', '']);
+                    data.push(['Bonus', '', safeGetElement('judgeRedBonus')?.value || '0', '', '', '', safeGetElement('judgeBlueBonus')?.value || '0', '', '']);
+                    data.push(['TOTAUX', '', safeGetElement('judgeRedTotal')?.textContent || '0', '', '', '', safeGetElement('judgeBlueTotal')?.textContent || '0', '', '']);
+                } else {
+                    data.push(['Sous TOTAUX 1', '', safeGetElement('judgeRedSubtotal1')?.textContent || '0', '', '', safeGetElement('judgeBlueSubtotal1')?.textContent || '0', '']);
+                    data.push(['Avertissements', '', safeGetElement('judgeRedWarnings')?.textContent || '0', '', '', safeGetElement('judgeBlueWarnings')?.textContent || '0', '']);
+                    data.push(['Sous TOTAUX 2', '', safeGetElement('judgeRedSubtotal2')?.textContent || '0', '', '', safeGetElement('judgeBlueSubtotal2')?.textContent || '0', '']);
+                    data.push(['Bonus', '', safeGetElement('judgeRedBonus')?.value || '0', '', '', safeGetElement('judgeBlueBonus')?.value || '0', '']);
+                    data.push(['TOTAUX', '', safeGetElement('judgeRedTotal')?.textContent || '0', '', '', safeGetElement('judgeBlueTotal')?.textContent || '0', '']);
+                }
+                
+                data.push([]);
+                data.push(['DÉCISION:', safeGetElement('judgeDecision')?.textContent || '-']);
+                
+                downloadCSV(data, `fiche_juge_${app.session.judgeId}_${formatDate(Date.now())}.csv`);
+                showNotification('📊 Export Excel réalisé avec succès!', 'success');
+                
+            } catch (error) {
+                console.error('Erreur lors de l\'export Excel:', error);
+                showNotification('❌ Erreur lors de l\'export Excel.', 'error');
+            }
+        }
+
+        function exportJudgeToMarkdown() {
+            try {
+                let markdown = '# FICHE DE JUGE - SAVATE BOXE FRANÇAISE\n\n';
+                
+                // Type de rencontre
+                const fightType = getFightTypeLabel(app.session.fightType);
+                markdown += `## ${fightType}\n\n`;
+                
+                // Informations du juge
+                markdown += '### Informations du juge\n';
+                markdown += `- **Nom:** ${app.session.judgeName || 'Non renseigné'}\n`;
+                markdown += `- **N° Juge:** ${app.session.judgeNumber || 'Non renseigné'}\n\n`;
+                
+                // Informations des tireurs
+                markdown += '### Tireurs\n';
+                markdown += `- **COIN ROUGE:** ${app.data.fighters.red || 'Non renseigné'}`;
+                if (abandons.red) markdown += ' *(ABANDON)*';
+                markdown += '\n';
+                markdown += `- **COIN BLEU:** ${app.data.fighters.blue || 'Non renseigné'}`;
+                if (abandons.blue) markdown += ' *(ABANDON)*';
+                markdown += '\n\n';
+                
+                // Tableau des scores
+                markdown += '### Scores par reprise\n\n';
+                if (isCombat()) {
+                    markdown += '| Reprise | Coin Rouge | Avertissements | Comptes | Coin Bleu | Avertissements | Comptes |\n';
+                    markdown += '|---------|------------|----------------|---------|-----------|----------------|----------|\n';
+                } else {
+                    markdown += '| Reprise | Coin Rouge | Avertissements | Coin Bleu | Avertissements |\n';
+                    markdown += '|---------|------------|----------------|-----------|----------------|\n';
+                }
+                
+                for (let i = 1; i <= activeRounds; i++) {
+                    const redScore = safeGetElement(`judgeRed${i}`)?.value || '-';
+                    const blueScore = safeGetElement(`judgeBlue${i}`)?.value || '-';
+                    const redAvt = warnings.red[i] ? 'A'.repeat(warnings.red[i]) : '-';
+                    const blueAvt = warnings.blue[i] ? 'A'.repeat(warnings.blue[i]) : '-';
+                    
+                    if (isCombat()) {
+                        const redCpte = comptes.red[i] ? 'C'.repeat(comptes.red[i]) : '-';
+                        const blueCpte = comptes.blue[i] ? 'C'.repeat(comptes.blue[i]) : '-';
+                        markdown += `| ${i} | ${redScore} | ${redAvt} | ${redCpte} | ${blueScore} | ${blueAvt} | ${blueCpte} |\n`;
+                    } else {
+                        markdown += `| ${i} | ${redScore} | ${redAvt} | ${blueScore} | ${blueAvt} |\n`;
+                    }
+                }
+                
+                markdown += '\n### Récapitulatif\n\n';
+                markdown += '| | Coin Rouge | Coin Bleu |\n';
+                markdown += '|---|------------|------------|\n';
+                markdown += `| **Sous TOTAUX 1** | ${safeGetElement('judgeRedSubtotal1')?.textContent || '0'} | ${safeGetElement('judgeBlueSubtotal1')?.textContent || '0'} |\n`;
+                markdown += `| **Avertissements** | ${safeGetElement('judgeRedWarnings')?.textContent || '0'} | ${safeGetElement('judgeBlueWarnings')?.textContent || '0'} |\n`;
+                
+                if (isCombat()) {
+                    markdown += `| **Compte** | ${safeGetElement('judgeRedComptes')?.textContent || '0'} | ${safeGetElement('judgeBlueComptes')?.textContent || '0'} |\n`;
+                }
+                
+                markdown += `| **Sous TOTAUX 2** | ${safeGetElement('judgeRedSubtotal2')?.textContent || '0'} | ${safeGetElement('judgeBlueSubtotal2')?.textContent || '0'} |\n`;
+                markdown += `| **Bonus** | ${safeGetElement('judgeRedBonus')?.value || '0'} | ${safeGetElement('judgeBlueBonus')?.value || '0'} |\n`;
+                markdown += `| **TOTAUX** | ${safeGetElement('judgeRedTotal')?.textContent || '0'} | ${safeGetElement('judgeBlueTotal')?.textContent || '0'} |\n`;
+                
+                markdown += `\n### DÉCISION\n\n**${safeGetElement('judgeDecision')?.textContent || '-'}**\n`;
+                
+                markdown += `\n---\n_Exporté le ${new Date().toLocaleString('fr-FR')}_`;
+                
+                downloadText(markdown, `fiche_juge_${app.session.judgeId}_${formatDate(Date.now())}.md`);
+                showNotification('📝 Export Markdown réalisé avec succès!', 'success');
+                
+            } catch (error) {
+                console.error('Erreur lors de l\'export Markdown:', error);
+                showNotification('❌ Erreur lors de l\'export Markdown.', 'error');
+            }
+        }
+
+        // =====================
+        // UTILITAIRES D'EXPORT
+        // =====================
+        
+        function downloadCSV(data, filename) {
+            let csv = '';
+            data.forEach(row => {
+                csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+            
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+        
+        function downloadText(text, filename) {
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+        
+        function downloadJSON(data, filename) {
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // =====================
+        // FONCTIONS DE RÉINITIALISATION AVANCÉES
+        // =====================
+
+        // Fonctions pour le délégué
+        function showResetOptions() {
+            const modal = document.getElementById('resetModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('resetModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        function performPartialReset() {
+            if (!confirm('⚠️ Confirmer la réinitialisation partielle ?\n\nTous les scores seront effacés mais la session et les juges connectés seront conservés.')) {
+                return;
+            }
+
+            console.log('🔄 Réinitialisation partielle en cours...');
+            
+            // Sauvegarder l'état avant la réinitialisation
+            saveDelegateState('RÉINITIALISATION PARTIELLE', {
+                fightersReset: true,
+                judgesDataReset: true,
+                sessionPreserved: true
+            });
+            
+            // Réinitialiser les noms des tireurs
+            app.data.fighters = { red: '', blue: '' };
+            document.getElementById('fighterRedName').value = '';
+            document.getElementById('fighterBlueName').value = '';
+            
+            // Réinitialiser les données de tous les juges (scores, warnings, comptes, etc.)
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                // Conserver les infos de connexion et personnelles
+                const preservedData = {
+                    id: judge.id,
+                    name: judge.name,
+                    number: judge.number,
+                    connected: judge.connected,
+                    peerId: judge.peerId,
+                    connectionTime: judge.connectionTime
+                };
+                
+                // Réinitialiser tout le reste
+                app.data.judges[judgeKey] = {
+                    ...preservedData,
+                    scores: {},
+                    warnings: { red: {}, blue: {} },
+                    comptes: { red: {}, blue: {} },
+                    abandons: { red: false, blue: false },
+                    bonuses: { red: 0, blue: 0 },
+                    totalRed: 0,
+                    totalBlue: 0,
+                    result: 'En attente...',
+                    lastUpdate: Date.now()
+                };
+            });
+
+            // Réinitialiser les résultats finaux
+            app.data.results = null;
+
+            // Envoyer la commande de réinitialisation partielle à tous les juges
+            sendToAll({
+                type: 'partial_reset_command',
+                data: {
+                    fighters: app.data.fighters,
+                    timestamp: Date.now()
+                }
+            }, 'high');
+
+            // Mettre à jour l'interface délégué
+            updateJudgeMonitoring();
+            updateRecapTable();
+            updateFinalResult();
+
+            closeResetModal();
+            showNotification('✅ Réinitialisation partielle effectuée avec succès!', 'success');
+            
+            console.log('✅ Réinitialisation partielle terminée');
+        }
+
+        function performCompleteReset() {
+            if (!confirm('⚠️ ATTENTION: Réinitialisation complète !\n\nToutes les connexions seront fermées et une nouvelle session sera créée.\nTous les juges devront se reconnecter.\n\nÊtes-vous certain ?')) {
+                return;
+            }
+
+            console.log('🔥 Réinitialisation complète en cours...');
+            
+            // Sauvegarder l'état avant la réinitialisation complète
+            saveDelegateState('RÉINITIALISATION COMPLÈTE', {
+                fullReset: true,
+                connectionsReset: true,
+                newSessionRequired: true
+            });
+            
+            // Envoyer notification de fermeture aux juges
+            sendToAll({
+                type: 'session_reset_complete',
+                data: {
+                    message: 'Session réinitialisée par le délégué',
+                    timestamp: Date.now()
+                }
+            }, 'critical');
+
+            // Attendre un peu que le message soit envoyé
+            setTimeout(() => {
+                resetApplication();
+            }, 1000);
+
+            closeResetModal();
+            showNotification('🔥 Réinitialisation complète en cours...', 'warning');
+        }
+
+        // Fermer les modales en cliquant à l'extérieur
+        document.addEventListener('click', function(event) {
+            const resetModal = document.getElementById('resetModal');
+            
+            if (resetModal && event.target === resetModal) {
+                closeResetModal();
+            }
+        });
+
+        // =====================
+        // RÉINITIALISATION COMPLÈTE
+        // =====================
+        
+        function resetApplication() {
+            if (!confirm('⚠️ Voulez-vous vraiment réinitialiser l\'application complète ?')) {
+                return;
+            }
+            
+            // Fermer toutes les connexions WebRTC
+            if (app.webrtc.peer) {
+                app.webrtc.peer.destroy();
+            }
+            
+            // Réinitialiser toutes les variables
+            app = {
+                version: '4.2.0',
+                webrtc: {
+                    peer: null,
+                    connections: new Map(),
+                    isHost: false,
+                    peerId: null,
+                    lastSyncTime: Date.now(),
+                    syncCount: 0,
+                    syncErrors: 0,
+                    reconnectAttempts: 0,
+                    maxReconnectAttempts: 5,
+                    connectionQuality: 'excellent',
+                    latency: 0
+                },
+                session: {
+                    id: '',
+                    code: '',
+                    fightType: 'assaut',
+                    judgeCount: 3,
+                    rounds: 3,
+                    initialized: false,
+                    role: '',
+                    judgeId: null,
+                    judgeName: '',
+                    judgeNumber: '',
+                    deviceId: 'device_' + Math.random().toString(36).substr(2, 9),
+                    startTime: null,
+                    status: 'inactive'
+                },
+                data: {
+                    judges: {},
+                    fighters: { red: '', blue: '' },
+                    connectedDevices: new Set(),
+                    changeLog: [],
+                    results: null
+                },
+                monitoring: {
+                    syncMetrics: {
+                        totalSync: 0,
+                        syncErrors: 0,
+                        uptimeStart: Date.now()
+                    }
+                }
+            };
+            
+            // Réinitialiser les données CPTE
+            Object.assign(warnings, { red: {}, blue: {} });
+            Object.assign(comptes, { red: {}, blue: {} });
+            Object.assign(abandons, { red: false, blue: false });
+            actionHistory = [];
+            delegateActionHistory = []; // Réinitialiser l'historique délégué
+            activeRounds = 3;
+            
+            // Réinitialiser l'interface
+            document.querySelectorAll('.hidden').forEach(el => el.classList.add('hidden'));
+            document.getElementById('roleSelector').classList.remove('hidden');
+            document.getElementById('contentArea').style.display = 'block';
+            document.getElementById('syncIndicator').classList.add('hidden');
+            
+            // Fermer les modales si ouvertes
+            closeResetModal();
+            document.body.style.overflow = 'auto';
+            
+            // Désactiver le bouton d'annulation du délégué
+            const delegateUndoButton = document.getElementById('delegateUndoButton');
+            if (delegateUndoButton) {
+                delegateUndoButton.disabled = true;
+                delegateUndoButton.textContent = '↶ ANNULER DERNIÈRE ACTION';
+            }
+            
+            // Nettoyer les notifications
+            document.querySelectorAll('.message').forEach(el => el.remove());
+            
+            showNotification('🔄 Application réinitialisée complètement', 'success');
+            
+            console.log('🔥 Réinitialisation complète terminée');
+        }
+
+        // =====================
+        // INITIALISATION FINALE
+        // =====================
+
+        // Initialisation au chargement de la page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('📱 DOM chargé - Interface CPTE prête');
+            
+            // Vérifier PeerJS
+            waitForPeerJS().then(() => {
+                console.log('✅ PeerJS disponible');
+            }).catch(error => {
+                console.warn('⚠️ PeerJS non disponible:', error);
+                showNotification('⚠️ Fonctions WebRTC limitées - PeerJS non chargé', 'warning');
+            });
+        });
+
+        // Fallback si DOMContentLoaded ne fonctionne pas
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('📱 DOM chargé (fallback) - Interface CPTE prête');
+            });
+        } else {
+            console.log('📱 DOM déjà chargé - Interface CPTE immédiatement disponible');
+        }
+
+        console.log('✅ SAVATE OFFICIALS - Interface CPTE Complète Finalisée avec succès');
+        console.log('🎯 Toutes les fonctionnalités CPTE sont opérationnelles');
+        console.log('🌐 Synchronisation WebRTC P2P activée');
+        console.log('📊 Monitoring délégué temps réel disponible');
+        console.log('🔧 Onglets délégué complets avec récapitulatif et résultats');
+        console.log('↶ Fonction d\'annulation des actions délégué intégrée');
+    
+    </script>
+</body>
+</html>

@@ -1,0 +1,700 @@
+                        <td colspan="2" class="corner-blue" style="text-align: center; font-weight: bold;">${blueWarningTotal ? -blueWarningTotal : 0}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Sous TOTAUX 2</td>
+                        <td colspan="2" class="corner-red" style="text-align: center; font-weight: bold;">${redSubtotal2}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center; font-weight: bold;">${blueSubtotal2}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Bonus</td>
+                        <td colspan="2" class="corner-red" style="text-align: center; font-weight: bold;">${redBonusValue}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center; font-weight: bold;">${blueBonusValue}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #e9ecef; font-size: 12px;">
+                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">TOTAUX</td>
+                        <td colspan="2" class="corner-red" style="text-align: center; font-weight: bold; font-size: 14px;">${redTotal}</td>
+                        <td class="corner-red abandon-cell ${judge.abandons && judge.abandons.red ? 'abandoned' : ''}" style="font-size: 8px;">${judge.abandons && judge.abandons.red ? 'ABANDON' : 'EN LICE'}</td>
+                        <td colspan="2" class="corner-blue" style="text-align: center; font-weight: bold; font-size: 14px;">${blueTotal}</td>
+                        <td class="corner-blue abandon-cell ${judge.abandons && judge.abandons.blue ? 'abandoned' : ''}" style="font-size: 8px;">${judge.abandons && judge.abandons.blue ? 'ABANDON' : 'EN LICE'}</td>
+                    </tr>
+                    <tr style="background: #e1bee7; font-size: 11px;">
+                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">DÉCISION</td>
+                        <td colspan="6" style="font-weight: bold; text-align: center;">${judge.result || 'En cours...'}</td>
+                    </tr>
+                `;
+            }
+            
+            bodyHTML += '</tbody>';
+            table.innerHTML = headerHTML + bodyHTML;
+            
+            return table;
+        }
+
+        function updateRecapTable() {
+            const container = document.getElementById('recapTableContainer');
+            if (!container) return;
+
+            const judgeCount = Object.keys(app.data.judges).length;
+            if (judgeCount === 0) {
+                container.innerHTML = `
+                    <div class="message info" style="margin: 20px 0;">
+                        <p>En attente des données des juges connectés...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Créer le tableau récapitulatif
+            let tableHTML = `
+                <table class="recap-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="2">Reprise</th>
+            `;
+
+            // En-têtes des juges
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                tableHTML += `<th colspan="2" class="judge-header">Juge ${judge.id} - ${judge.name || 'Non défini'}</th>`;
+            });
+
+            tableHTML += `</tr><tr>`;
+            
+            // Sous-en-têtes Rouge/Bleu
+            Object.keys(app.data.judges).forEach(() => {
+                tableHTML += `<th class="score-red">Rouge</th><th class="score-blue">Bleu</th>`;
+            });
+
+            tableHTML += `</tr></thead><tbody>`;
+
+            // Lignes par reprise
+            for (let round = 1; round <= app.session.rounds; round++) {
+                tableHTML += `<tr><td class="round-cell">Reprise ${round}</td>`;
+                
+                Object.keys(app.data.judges).forEach(judgeKey => {
+                    const judge = app.data.judges[judgeKey];
+                    const roundScore = judge.scores && judge.scores[round] ? judge.scores[round] : { red: '-', blue: '-' };
+                    tableHTML += `<td class="score-red">${roundScore.red || '-'}</td><td class="score-blue">${roundScore.blue || '-'}</td>`;
+                });
+                
+                tableHTML += `</tr>`;
+            }
+
+            // Ligne des totaux
+            tableHTML += `<tr class="total-row"><td>TOTAUX</td>`;
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                tableHTML += `<td class="score-red">${judge.totalRed || 0}</td><td class="score-blue">${judge.totalBlue || 0}</td>`;
+            });
+            tableHTML += `</tr>`;
+
+            // Ligne des résultats
+            tableHTML += `<tr class="final-result"><td>RÉSULTAT</td>`;
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                const result = judge.result || 'En cours...';
+                tableHTML += `<td colspan="2">${result}</td>`;
+            });
+            tableHTML += `</tr>`;
+
+            tableHTML += `</tbody></table>`;
+            
+            container.innerHTML = tableHTML;
+        }
+
+        function updateFinalResult() {
+            const container = document.getElementById('finalResultContainer');
+            if (!container) return;
+
+            const judgeCount = Object.keys(app.data.judges).length;
+            const completedJudges = Object.keys(app.data.judges).filter(k => {
+                const judge = app.data.judges[k];
+                return judge.result && judge.result !== 'En cours...' && judge.result !== 'En attente...';
+            });
+
+            if (completedJudges.length === 0) {
+                container.innerHTML = `
+                    <div class="message info" style="margin: 20px 0;">
+                        <p>En attente des décisions de tous les juges...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (completedJudges.length < judgeCount) {
+                container.innerHTML = `
+                    <div class="message warning" style="margin: 20px 0;">
+                        <p>Décisions reçues: ${completedJudges.length}/${judgeCount}</p>
+                        <p>En attente des autres juges...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Calculer le résultat final par majorité
+            let redVotes = 0;
+            let blueVotes = 0;
+            const judgeVotes = {};
+
+            completedJudges.forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                const result = judge.result.toLowerCase();
+                
+                if (result.includes('rouge')) {
+                    redVotes++;
+                    judgeVotes[judgeKey] = 'rouge';
+                } else if (result.includes('bleu')) {
+                    blueVotes++;
+                    judgeVotes[judgeKey] = 'bleu';
+                } else {
+                    judgeVotes[judgeKey] = 'autre';
+                }
+            });
+
+            let finalResult = '';
+            let winnerColor = '';
+
+            if (redVotes > blueVotes) {
+                finalResult = `VICTOIRE COIN ROUGE - ${app.data.fighters.red || 'Tireur Rouge'}`;
+                winnerColor = 'red';
+            } else if (blueVotes > redVotes) {
+                finalResult = `VICTOIRE COIN BLEU - ${app.data.fighters.blue || 'Tireur Bleu'}`;
+                winnerColor = 'blue';
+            } else {
+                finalResult = 'ÉGALITÉ - Décision partagée';
+                winnerColor = 'tie';
+            }
+
+            const majorityDetails = Object.keys(judgeVotes).map(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                const vote = judgeVotes[judgeKey];
+                return `
+                    <div class="judge-vote">
+                        <span>Juge ${judge.id} (${judge.name})</span>
+                        <span class="${vote === 'rouge' ? 'winner' : ''}">${judge.result}</span>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="final-result-container">
+                    <div class="final-result-title">🏆 RÉSULTAT FINAL OFFICIEL</div>
+                    <div class="final-result-details">${finalResult}</div>
+                    <div style="font-size: 16px; margin: 10px 0;">
+                        Majorité: ${Math.max(redVotes, blueVotes)}/${completedJudges.length} juges
+                    </div>
+                    
+                    <div class="majority-details">
+                        <h4 style="margin-bottom: 15px;">Détail des votes des juges:</h4>
+                        ${majorityDetails}
+                    </div>
+                    
+                    <div style="margin-top: 20px; font-size: 14px; color: #666;">
+                        Calcul automatique basé sur la majorité des décisions
+                    </div>
+                </div>
+            `;
+
+            // Sauvegarder le résultat final
+            app.data.results = {
+                finalResult: finalResult,
+                redVotes: redVotes,
+                blueVotes: blueVotes,
+                judgeVotes: judgeVotes,
+                timestamp: Date.now()
+            };
+        }
+
+        // =====================
+        // FONCTIONS D'EXPORT DÉLÉGUÉ
+        // =====================
+
+        function exportCompleteMatchSheet() {
+            // Export Excel complet
+            const data = [
+                ['FEUILLE DE MATCH COMPLÈTE - SAVATE BOXE FRANÇAISE'],
+                [''],
+                ['Session:', app.session.code],
+                ['Type:', getFightTypeLabel(app.session.fightType)],
+                ['Date:', new Date().toLocaleDateString('fr-FR')],
+                [''],
+                ['Tireur Rouge:', app.data.fighters.red || 'Non défini'],
+                ['Tireur Bleu:', app.data.fighters.blue || 'Non défini'],
+                ['']
+            ];
+
+            // Ajouter les données de chaque juge
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                data.push([`JUGE ${judge.id} - ${judge.name}`]);
+                data.push(['Résultat:', judge.result || 'En cours']);
+                data.push(['Total Rouge:', judge.totalRed || 0]);
+                data.push(['Total Bleu:', judge.totalBlue || 0]);
+                data.push(['']);
+            });
+
+            if (app.data.results) {
+                data.push(['RÉSULTAT FINAL:', app.data.results.finalResult]);
+                data.push(['Votes Rouge:', app.data.results.redVotes]);
+                data.push(['Votes Bleu:', app.data.results.blueVotes]);
+            }
+
+            downloadCSV(data, `feuille_match_complete_${app.session.code}_${formatDate(Date.now())}.csv`);
+            showNotification('📊 Export Excel complet réalisé!', 'success');
+        }
+
+        function exportOfficialReport() {
+            // Export Markdown officiel
+            let markdown = '# RAPPORT OFFICIEL - SAVATE BOXE FRANÇAISE\n\n';
+            markdown += `## Informations de la rencontre\n`;
+            markdown += `- **Code de session:** ${app.session.code}\n`;
+            markdown += `- **Type:** ${getFightTypeLabel(app.session.fightType)}\n`;
+            markdown += `- **Date:** ${new Date().toLocaleDateString('fr-FR')}\n`;
+            markdown += `- **Heure:** ${new Date().toLocaleTimeString('fr-FR')}\n\n`;
+            
+            markdown += `## Tireurs\n`;
+            markdown += `- **Coin Rouge:** ${app.data.fighters.red || 'Non défini'}\n`;
+            markdown += `- **Coin Bleu:** ${app.data.fighters.blue || 'Non défini'}\n\n`;
+            
+            markdown += `## Juges connectés\n`;
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                markdown += `### Juge ${judge.id} - ${judge.name}\n`;
+                markdown += `- **Numéro:** ${judge.number}\n`;
+                markdown += `- **Résultat:** ${judge.result || 'En cours'}\n`;
+                markdown += `- **Score Rouge:** ${judge.totalRed || 0}\n`;
+                markdown += `- **Score Bleu:** ${judge.totalBlue || 0}\n\n`;
+            });
+
+            if (app.data.results) {
+                markdown += `## 🏆 RÉSULTAT FINAL OFFICIEL\n`;
+                markdown += `**${app.data.results.finalResult}**\n\n`;
+                markdown += `- Votes pour le coin rouge: ${app.data.results.redVotes}\n`;
+                markdown += `- Votes pour le coin bleu: ${app.data.results.blueVotes}\n\n`;
+            }
+
+            markdown += `---\n_Rapport généré le ${new Date().toLocaleString('fr-FR')}_`;
+            
+            downloadText(markdown, `rapport_officiel_${app.session.code}_${formatDate(Date.now())}.md`);
+            showNotification('📋 Rapport officiel exporté!', 'success');
+        }
+
+        function exportRawData() {
+            // Export JSON complet
+            const exportData = {
+                session: app.session,
+                fighters: app.data.fighters,
+                judges: app.data.judges,
+                results: app.data.results,
+                changeLog: app.data.changeLog,
+                exportTimestamp: Date.now(),
+                version: app.version
+            };
+
+            downloadJSON(exportData, `donnees_brutes_${app.session.code}_${formatDate(Date.now())}.json`);
+            showNotification('📝 Données brutes exportées!', 'success');
+        }
+
+        function printFinalResult() {
+            // Version imprimable
+            if (!app.data.results) {
+                showNotification('⚠️ Aucun résultat final à imprimer', 'warning');
+                return;
+            }
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Résultat Final - ${app.session.code}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        h1 { text-align: center; color: #2c3e50; }
+                        .result { background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                        .details { margin: 20px 0; }
+                        .judge-vote { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ddd; }
+                        .winner { font-weight: bold; color: #27ae60; }
+                    </style>
+                </head>
+                <body>
+                    <h1>🏆 RÉSULTAT FINAL OFFICIEL</h1>
+                    <div class="result">
+                        <h2>${app.data.results.finalResult}</h2>
+                        <p><strong>Majorité:</strong> ${Math.max(app.data.results.redVotes, app.data.results.blueVotes)}/${Object.keys(app.data.judges).length} juges</p>
+                    </div>
+                    
+                    <div class="details">
+                        <h3>Détail des votes:</h3>
+                        ${Object.keys(app.data.results.judgeVotes).map(judgeKey => {
+                            const judge = app.data.judges[judgeKey];
+                            return `<div class="judge-vote"><span>Juge ${judge.id} (${judge.name})</span><span class="winner">${judge.result}</span></div>`;
+                        }).join('')}
+                    </div>
+                    
+                    <div style="margin-top: 40px; text-align: center; color: #666;">
+                        Session: ${app.session.code} - ${new Date().toLocaleString('fr-FR')}
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+            
+            showNotification('🖨️ Fenêtre d\'impression ouverte!', 'success');
+        }
+
+        function exportAllFormats() {
+            exportCompleteMatchSheet();
+            setTimeout(() => exportOfficialReport(), 500);
+            setTimeout(() => exportRawData(), 1000);
+            showNotification('🚀 Export de tous les formats lancé!', 'success');
+        }
+
+        // =====================
+        // INTERFACE JUGE CPTE COMPLÈTE
+        // =====================
+
+        function showJudgeInterface() {
+            document.getElementById('judgeInterface').classList.remove('hidden');
+            document.getElementById('contentArea').style.display = 'none';
+            document.getElementById('syncIndicator').classList.remove('hidden');
+            
+            // Afficher les informations du juge
+            document.getElementById('judgeSessionCode').textContent = app.session.code;
+            document.getElementById('judgeInfo').textContent = `${app.session.judgeName} (#${app.session.judgeNumber})`;
+            
+            // Remplir les champs de juge
+            document.getElementById('judgeNameField').value = app.session.judgeName;
+            document.getElementById('judgeNumberField').value = app.session.judgeNumber;
+            
+            // Initialiser l'interface CPTE
+            updateJudgeTypeSelection();
+            updateJudgeRounds();
+            createJudgeTableStructure();
+            updateFighterNamesInInterface();
+        }
+
+        function updateJudgeTypeSelection() {
+            const typeSelection = document.getElementById('judgeTypeSelection');
+            if (!typeSelection) return;
+            
+            typeSelection.innerHTML = `
+                <label style="font-weight: bold; color: #2c3e50; font-size: 18px;">
+                    📋 ${getFightTypeLabel(app.session.fightType)}
+                </label>
+            `;
+        }
+
+        function updateJudgeRounds() {
+            activeRounds = app.session.rounds;
+        }
+
+        function createJudgeTableStructure() {
+            const isCombatType = isCombat();
+            const colgroup = safeGetElement('judgeColgroup');
+            const tableHeader = safeGetElement('judgeTableHeader');
+            const tableBody = safeGetElement('judgeTableBody');
+            
+            if (!colgroup || !tableHeader || !tableBody) return;
+            
+            // Vider le contenu existant
+            colgroup.innerHTML = '';
+            tableHeader.innerHTML = '';
+            tableBody.innerHTML = '';
+            
+            // Créer les colonnes
+            if (isCombatType) {
+                colgroup.innerHTML = `
+                    <col style="width: 150px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                    <col style="width: 60px;">
+                `;
+            } else {
+                colgroup.innerHTML = `
+                    <col style="width: 150px;">
+                    <col style="width: 80px;">
+                    <col style="width: 70px;">
+                    <col style="width: 70px;">
+                    <col style="width: 80px;">
+                    <col style="width: 70px;">
+                    <col style="width: 70px;">
+                `;
+            }
+            
+            // Créer l'en-tête
+            if (isCombatType) {
+                tableHeader.innerHTML = `
+                    <tr>
+                        <th rowspan="2" style="width: 150px;">NOTATION</th>
+                        <th colspan="4" style="background-color: #ef5350; color: white;">COIN ROUGE</th>
+                        <th colspan="4" style="background-color: #42a5f5; color: white;">COIN BLEU</th>
+                    </tr>
+                    <tr>
+                        <th class="corner-red">Reprise</th>
+                        <th class="corner-red">NOTE</th>
+                        <th class="corner-red">AVT</th>
+                        <th class="corner-red">CPTE</th>
+                        <th class="corner-blue">Reprise</th>
+                        <th class="corner-blue">NOTE</th>
+                        <th class="corner-blue">AVT</th>
+                        <th class="corner-blue">CPTE</th>
+                    </tr>
+                `;
+            } else {
+                tableHeader.innerHTML = `
+                    <tr>
+                        <th rowspan="2" style="width: 150px;">NOTATION</th>
+                        <th colspan="3" style="background-color: #ef5350; color: white;">COIN ROUGE</th>
+                        <th colspan="3" style="background-color: #42a5f5; color: white;">COIN BLEU</th>
+                    </tr>
+                    <tr>
+                        <th class="corner-red">Reprise</th>
+                        <th class="corner-red">NOTE</th>
+                        <th class="corner-red">AVT</th>
+                        <th class="corner-blue">Reprise</th>
+                        <th class="corner-blue">NOTE</th>
+                        <th class="corner-blue">AVT</th>
+                    </tr>
+                `;
+            }
+            
+            // Créer le corps du tableau
+            const notationText = isCombatType ? 
+                `Égalité: 2/2<br>Gagné: 3/2<br>Dominé: 3/1<br>Non décision: X/X<br>Avertissement: -1<br>Compte: -1<br>Bonus: +1` :
+                `Égalité: 2/2<br>Gagné: 3/2<br>Dominé: 3/1<br>Non décision: X/X<br>Avertissement: -1<br>Bonus: +1`;
+            
+            let bodyHTML = '';
+            
+            // Initialiser les données de juge
+            if (!warnings.red) warnings.red = {};
+            if (!warnings.blue) warnings.blue = {};
+            if (!comptes.red) comptes.red = {};
+            if (!comptes.blue) comptes.blue = {};
+            
+            // Lignes de reprises
+            for (let i = 1; i <= 5; i++) {
+                const hiddenClass = i > activeRounds ? 'hidden-row' : '';
+                const rowspanAttr = i === 1 ? `rowspan="${activeRounds}"` : '';
+                const notationCell = i === 1 ? `<td ${rowspanAttr} style="vertical-align: top;" class="notation-cell"><small>${notationText}</small></td>` : '';
+                
+                if (isCombatType) {
+                    bodyHTML += `
+                        <tr id="judgeRound${i}" class="${hiddenClass}">
+                            ${notationCell}
+                            <td class="corner-red">${i}</td>
+                            <td class="corner-red">
+                                <select class="score-select" id="judgeRed${i}" onchange="validateAndUpdateJudgeScores(${i})">
+                                    <option value="">-</option>
+                                    <option value="3">3</option>
+                                    <option value="2">2</option>
+                                    <option value="1">1</option>
+                                </select>
+                            </td>
+                            <td class="corner-red warning-cell" id="judgeRedAvtCell${i}" onclick="toggleJudgeWarning('red', ${i})"></td>
+                            <td class="corner-red compte-cell" id="judgeRedCpteCell${i}" onclick="toggleJudgeCompte('red', ${i})"></td>
+                            <td class="corner-blue">${i}</td>
+                            <td class="corner-blue">
+                                <select class="score-select" id="judgeBlue${i}" onchange="validateAndUpdateJudgeScores(${i})">
+                                    <option value="">-</option>
+                                    <option value="3">3</option>
+                                    <option value="2">2</option>
+                                    <option value="1">1</option>
+                                </select>
+                            </td>
+                            <td class="corner-blue warning-cell" id="judgeBlueAvtCell${i}" onclick="toggleJudgeWarning('blue', ${i})"></td>
+                            <td class="corner-blue compte-cell" id="judgeBlueCpteCell${i}" onclick="toggleJudgeCompte('blue', ${i})"></td>
+                        </tr>
+                    `;
+                } else {
+                    bodyHTML += `
+                        <tr id="judgeRound${i}" class="${hiddenClass}">
+                            ${notationCell}
+                            <td class="corner-red">${i}</td>
+                            <td class="corner-red">
+                                <select class="score-select" id="judgeRed${i}" onchange="validateAndUpdateJudgeScores(${i})">
+                                    <option value="">-</option>
+                                    <option value="3">3</option>
+                                    <option value="2">2</option>
+                                    <option value="1">1</option>
+                                </select>
+                            </td>
+                            <td class="corner-red warning-cell" id="judgeRedAvtCell${i}" onclick="toggleJudgeWarning('red', ${i})"></td>
+                            <td class="corner-blue">${i}</td>
+                            <td class="corner-blue">
+                                <select class="score-select" id="judgeBlue${i}" onchange="validateAndUpdateJudgeScores(${i})">
+                                    <option value="">-</option>
+                                    <option value="3">3</option>
+                                    <option value="2">2</option>
+                                    <option value="1">1</option>
+                                </select>
+                            </td>
+                            <td class="corner-blue warning-cell" id="judgeBlueAvtCell${i}" onclick="toggleJudgeWarning('blue', ${i})"></td>
+                        </tr>
+                    `;
+                }
+            }
+            
+            // Lignes de totaux
+            if (isCombatType) {
+                bodyHTML += `
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">Sous TOTAUX 1</td>
+                        <td colspan="3" class="corner-red" style="text-align: center;"><span id="judgeRedSubtotal1">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center;"><span id="judgeBlueSubtotal1">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">**Avertissements**</td>
+                        <td colspan="3" class="corner-red" style="text-align: center;"><span id="judgeRedWarnings">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center;"><span id="judgeBlueWarnings">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">Compte</td>
+                        <td colspan="3" class="corner-red" style="text-align: center;"><span id="judgeRedComptes">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center;"><span id="judgeBlueComptes">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">Sous TOTAUX 2</td>
+                        <td colspan="3" class="corner-red" style="text-align: center;"><span id="judgeRedSubtotal2">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center;"><span id="judgeBlueSubtotal2">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr>
+                        <td>Bonus</td>
+                        <td colspan="3" class="corner-red" style="text-align: center;">
+                            <input type="number" class="score-input" id="judgeRedBonus" min="0" max="1" value="0" onchange="validateJudgeBonus()">
+                        </td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center;">
+                            <input type="number" class="score-input" id="judgeBlueBonus" min="0" max="1" value="0" onchange="validateJudgeBonus()">
+                        </td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="total">
+                        <td>TOTAUX</td>
+                        <td colspan="3" class="corner-red" style="text-align: center;"><span id="judgeRedTotal">0</span></td>
+                        <td class="corner-red abandon-cell" id="judgeAbandonRed" onclick="toggleJudgeAbandon('red')">ABANDON</td>
+                        <td colspan="3" class="corner-blue" style="text-align: center;"><span id="judgeBlueTotal">0</span></td>
+                        <td class="corner-blue abandon-cell" id="judgeAbandonBlue" onclick="toggleJudgeAbandon('blue')">ABANDON</td>
+                    </tr>
+                    <tr class="decision-row">
+                        <td>DÉCISION</td>
+                        <td colspan="8" class="decision-cell"><span id="judgeDecision">-</span></td>
+                    </tr>
+                `;
+            } else {
+                bodyHTML += `
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">Sous TOTAUX 1</td>
+                        <td colspan="2" class="corner-red" style="text-align: center;"><span id="judgeRedSubtotal1">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center;"><span id="judgeBlueSubtotal1">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">**Avertissements**</td>
+                        <td colspan="2" class="corner-red" style="text-align: center;"><span id="judgeRedWarnings">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center;"><span id="judgeBlueWarnings">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="subtotal">
+                        <td style="text-align: left; padding-left: 10px;">Sous TOTAUX 2</td>
+                        <td colspan="2" class="corner-red" style="text-align: center;"><span id="judgeRedSubtotal2">0</span></td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center;"><span id="judgeBlueSubtotal2">0</span></td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr>
+                        <td>Bonus</td>
+                        <td colspan="2" class="corner-red" style="text-align: center;">
+                            <input type="number" class="score-input" id="judgeRedBonus" min="0" max="1" value="0" onchange="validateJudgeBonus()">
+                        </td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center;">
+                            <input type="number" class="score-input" id="judgeBlueBonus" min="0" max="1" value="0" onchange="validateJudgeBonus()">
+                        </td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr class="total">
+                        <td>TOTAUX</td>
+                        <td colspan="2" class="corner-red" style="text-align: center;"><span id="judgeRedTotal">0</span></td>
+                        <td class="corner-red abandon-cell" id="judgeAbandonRed" onclick="toggleJudgeAbandon('red')">ABANDON</td>
+                        <td colspan="2" class="corner-blue" style="text-align: center;"><span id="judgeBlueTotal">0</span></td>
+                        <td class="corner-blue abandon-cell" id="judgeAbandonBlue" onclick="toggleJudgeAbandon('blue')">ABANDON</td>
+                    </tr>
+                    <tr class="decision-row">
+                        <td>DÉCISION</td>
+                        <td colspan="6" class="decision-cell"><span id="judgeDecision">-</span></td>
+                    </tr>
+                `;
+            }
+            
+            tableBody.innerHTML = bodyHTML;
+        }
+
+        function updateFighterNamesInInterface() {
+            // Interface juge
+            const redFighter = document.getElementById('judgeRedFighter');
+            const blueFighter = document.getElementById('judgeBlueFighter');
+            
+            if (redFighter) redFighter.value = app.data.fighters.red || '';
+            if (blueFighter) blueFighter.value = app.data.fighters.blue || '';
+            
+            // Mise à jour des indicateurs
+            updateJudgeFieldIndicators();
+        }
+
+        function updateJudgeFieldIndicators() {
+            const redIndicator = document.getElementById('judgeRedFighterIndicator');
+            const blueIndicator = document.getElementById('judgeBlueFighterIndicator');
+            
+            if (redIndicator) {
+                const hasRed = app.data.fighters.red && app.data.fighters.red.trim() !== '';
+                redIndicator.className = `completion-indicator ${hasRed ? 'complete' : 'incomplete'}`;
+            }
+            
+            if (blueIndicator) {
+                const hasBlue = app.data.fighters.blue && app.data.fighters.blue.trim() !== '';
+                blueIndicator.className = `completion-indicator ${hasBlue ? 'complete' : 'incomplete'}`;
+            }
+        }
+
+        // =====================
+        // FONCTIONS CPTE JUGE COMPLÈTES
+        // =====================
+
+        function saveJudgeState() {
+            const state = {
+                warnings: JSON.parse(JSON.stringify(warnings)),
+                comptes: JSON.parse(JSON.stringify(comptes)),
+                abandons: JSON.parse(JSON.stringify(abandons)),
+                scores: {},
+                bonus: {
+                    red: safeGetElement('judgeRedBonus')?.value || '0',
+                    blue: safeGetElement('judgeBlueBonus')?.value || '0'
+                }
+            };
+            
+            // Sauvegarder les scores
+            for (let i = 1; i <= 5; i++) {
+                const redElement = safeGetElement(`judgeRed${i}`);
+                const blueElement = safeGetElement(`judgeBlue${i}`);

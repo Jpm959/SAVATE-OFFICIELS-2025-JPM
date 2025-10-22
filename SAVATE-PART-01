@@ -1,0 +1,700 @@
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, rgba(0,85,164,0.05) 0%, rgba(255,255,255,1) 100%);
+            padding: 30px;
+            border-radius: 20px;
+            border: 2px solid rgba(0,85,164,0.15);
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0,85,164,0.2);
+            border-color: #0055A4;
+        }
+
+        .feature-card h4 {
+            color: #0055A4;
+            font-size: 20px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .feature-list {
+            list-style: none;
+            color: #555;
+            line-height: 2;
+            font-size: 15px;
+            text-align: left;
+        }
+
+        .feature-list li::before {
+            content: '✓ ';
+            color: #27ae60;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .fighters-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        
+        .fighter-info {
+            flex: 1;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .fighter-info.red {
+            background-color: #ffcdd2;
+            border: 2px solid #d32f2f;
+        }
+        
+        .fighter-info.blue {
+            background-color: #bbdefb;
+            border: 2px solid #1976d2;
+        }
+        
+        .fighter-info h3 {
+            margin: 0 0 10px 0;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .fighter-info input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+
+        .judge-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .judge-info label {
+            display: inline-block;
+            width: 100px;
+            font-weight: bold;
+        }
+        
+        .judge-info input {
+            width: 300px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .export-section {
+            background: linear-gradient(135deg, rgba(33,150,243,0.1) 0%, rgba(21,101,192,0.1) 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        
+        .export-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .export-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .export-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .reset-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            backdrop-filter: blur(5px);
+        }
+
+        .reset-modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            position: relative;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .reset-option {
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%);
+            border: 3px solid #ddd;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .reset-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.3);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 30px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive amélioré */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .app-container {
+                padding: 20px;
+            }
+            
+            .app-header {
+                padding: 30px 20px;
+            }
+            
+            .app-title {
+                font-size: 28px;
+            }
+            
+            .role-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .role-button {
+                min-width: 250px;
+            }
+            
+            .savate-logo {
+                width: 250px;
+                height: 180px;
+            }
+
+            .fighters-section {
+                flex-direction: column;
+            }
+        }
+        
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes updateFlash {
+            0% { background-color: rgba(243,156,18,0.1); }
+            50% { background-color: rgba(243,156,18,0.3); }
+            100% { background-color: rgba(243,156,18,0.1); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+    
+    </style>
+</head>
+<body>
+
+    <!-- Enhanced Sync Indicator -->
+    <div class="sync-indicator hidden" id="syncIndicator">
+        <span id="syncIcon">⚡</span>
+        <span id="syncStatus">Initialisation...</span>
+        <span class="sync-devices-count" id="devicesCount">0 appareils</span>
+    </div>
+
+    <div class="app-container">
+        <div class="app-header">
+            <h1>🥊 SAVATE OFFICIALS - Interface CPTE Complète</h1>
+            <p>Système Professionnel avec Interface CPTE Avancée - WebRTC P2P + Monitoring</p>
+            <small>Synchronisation Temps Réel • Interface CPTE Conforme • Export & Sauvegarde</small>
+        </div>
+        
+        <!-- Role Selection -->
+        <div class="role-selector fade-in" id="roleSelector">
+            <h2>🎭 Sélectionnez votre rôle</h2>
+            
+            <!-- Logo SAVATE OFFICIALS -->
+            <div class="savate-logo">
+                <!-- Quadrillage rouge horizontal -->
+                <div class="grid-line-red"></div>
+                <div class="grid-line-red"></div>
+                <div class="grid-line-red"></div>
+                <div class="grid-line-red"></div>
+                <div class="grid-line-red"></div>
+                <div class="grid-line-red"></div>
+                <div class="grid-line-red"></div>
+                
+                <!-- Quadrillage bleu vertical -->
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                <div class="grid-line-blue"></div>
+                
+                <!-- Logo FFSavate en haut -->
+                <div class="ffsavate-logo">FFSavate</div>
+                
+                <!-- Texte principal centré -->
+                <div class="savate-text">
+                    <div class="savate-main">SAVATE</div>
+                    <div class="officials-text">OFFICIALS</div>
+                </div>
+                
+                <!-- Coins décoratifs dorés -->
+                <div class="logo-corner top-left"></div>
+                <div class="logo-corner top-right"></div>
+                <div class="logo-corner bottom-left"></div>
+                <div class="logo-corner bottom-right"></div>
+                
+                <!-- Signature JPM -->
+                <div class="jpm-signature">JPM</div>
+            </div>
+            
+            <div class="role-buttons">
+                <button class="role-button delegate" onclick="selectRole('delegate')">
+                    👑 Délégué Officiel<br>
+                    <small style="font-weight: normal; font-size: 14px; margin-top: 8px; display: block;">
+                        Configuration • Supervision • Monitoring CPTE • Export Résultats
+                    </small>
+                </button>
+                <button class="role-button judge" onclick="selectRole('judge')">
+                    👨‍⚖️ Juge<br>
+                    <small style="font-weight: normal; font-size: 14px; margin-top: 8px; display: block;">
+                        Interface CPTE Complète • Synchronisation • Validation Automatique
+                    </small>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Judge Access Section -->
+        <div class="access-key-input hidden fade-in" id="judgeAccessSection">
+            <h3>🔑 Connexion Juge WebRTC</h3>
+            <p>Entrez le code à 4 chiffres fourni par le délégué</p>
+            
+            <div style="margin: 30px 0;">
+                <label style="display: block; margin: 15px 0 5px 0; font-weight: bold; font-size: 18px;">Nom du juge:</label>
+                <input type="text" id="judgeNameInput" placeholder="Votre nom complet" 
+                       style="padding: 15px; border: 3px solid #ddd; border-radius: 10px; font-size: 18px; width: 100%; max-width: 400px; margin: 0 auto; display: block;"
+                       required>
+            </div>
+            
+            <div style="margin: 30px 0;">
+                <label style="display: block; margin: 15px 0 5px 0; font-weight: bold; font-size: 18px;">Numéro du juge:</label>
+                <input type="text" id="judgeNumberInput" placeholder="Votre numéro officiel" 
+                       style="padding: 15px; border: 3px solid #ddd; border-radius: 10px; font-size: 18px; width: 100%; max-width: 400px; margin: 0 auto; display: block;"
+                       required>
+            </div>
+            
+            <div style="margin: 30px 0;">
+                <label style="display: block; margin: 15px 0 5px 0; font-weight: bold; font-size: 18px;">Code de session:</label>
+                <input type="text" id="accessKeyInput" placeholder="0000" maxlength="4" pattern="[0-9]{4}"
+                       style="padding: 20px; border: 3px solid #667eea; border-radius: 15px; font-size: 32px; text-align: center; width: 200px; font-family: 'Courier New', monospace; font-weight: bold; letter-spacing: 8px;"
+                       required>
+            </div>
+            
+            <div>
+                <button class="button-primary" onclick="accessJudgeSheet()" style="font-size: 18px; padding: 15px 30px;" id="connectButton">
+                    🚪 Se connecter WebRTC
+                </button>
+                <button class="button-primary" onclick="goBack()">⬅️ Retour</button>
+            </div>
+        </div>
+        
+        <!-- Delegate Interface -->
+        <div class="hidden fade-in" id="delegateInterface">
+            <div class="config-section" id="configSection">
+                <div class="config-group">
+                    <h3>🥊 Type de rencontre</h3>
+                    <input type="radio" name="fightType" value="assaut" id="assaut" checked>
+                    <label for="assaut">⚡ Assaut (3 reprises)</label>
+                    <input type="radio" name="fightType" value="combat2espoirs" id="combat2espoirs">
+                    <label for="combat2espoirs">🥊 Combat 2ème Série Espoirs (3 reprises)</label>
+                    <input type="radio" name="fightType" value="combat2seniors" id="combat2seniors">
+                    <label for="combat2seniors">🥊 Combat 2ème Série Seniors (4 reprises)</label>
+                    <input type="radio" name="fightType" value="combat1juniors" id="combat1juniors">
+                    <label for="combat1juniors">🥊 Combat 1ère Série Juniors (4 reprises)</label>
+                    <input type="radio" name="fightType" value="combat1seniors" id="combat1seniors">
+                    <label for="combat1seniors">🥊 Combat 1ère Série Seniors (5 reprises)</label>
+                </div>
+                
+                <div class="config-group">
+                    <h3>👨‍⚖️ Nombre de juges</h3>
+                    <input type="radio" name="judgeCount" value="3" id="judges3" checked>
+                    <label for="judges3">👥 3 juges</label>
+                    <input type="radio" name="judgeCount" value="5" id="judges5">
+                    <label for="judges5">👥 5 juges</label>
+                </div>
+                
+                <div class="config-group">
+                    <h3>⚙️ Actions</h3>
+                    <button class="button-primary" onclick="createSession()" style="font-size: 18px; padding: 15px 30px;" id="createSessionButton">
+                        🚀 Créer Session WebRTC
+                    </button>
+                    <button class="button-warning" onclick="showResetOptions()">🔄 Réinitialisation</button>
+                    <button class="undo-button" id="delegateUndoButton" onclick="undoDelegateLastAction()" disabled>↶ ANNULER DERNIÈRE ACTION</button>
+                </div>
+            </div>
+
+            <!-- Delegate Dashboard -->
+            <div class="hidden" id="delegateDashboard">
+                <!-- Fighter Names Section -->
+                <div class="fighters-section">
+                    <div class="fighter-info red">
+                        <h3>🔴 Tireur Rouge</h3>
+                        <input type="text" id="fighterRedName" placeholder="Nom du tireur rouge" onchange="updateFighterNames()">
+                    </div>
+                    <div class="fighter-info blue">
+                        <h3>🔵 Tireur Bleu</h3>
+                        <input type="text" id="fighterBlueName" placeholder="Nom du tireur bleu" onchange="updateFighterNames()">
+                    </div>
+                </div>
+
+                <!-- Session Info -->
+                <div class="message info" id="sessionInfo">
+                    <h3>📋 Informations de Session</h3>
+                    <div id="sessionDetails">
+                        <strong>Code de session:</strong> <span id="sessionCodeDisplay"></span><br>
+                        <strong>Type de combat:</strong> <span id="fightTypeDisplay"></span><br>
+                        <strong>Nombre de juges:</strong> <span id="judgeCountDisplay"></span><br>
+                        <strong>Nombre de reprises:</strong> <span id="roundsDisplay"></span>
+                    </div>
+                </div>
+
+                <!-- Tabs Container -->
+                <div class="tabs-container">
+                    <div class="tabs-header">
+                        <button class="tab-button active" onclick="showTab('monitoring')">
+                            📊 Monitoring Juges
+                        </button>
+                        <button class="tab-button" onclick="showTab('recap')">
+                            📋 Tableau Récapitulatif
+                        </button>
+                        <button class="tab-button" onclick="showTab('result')">
+                            🏆 Résultat Final
+                        </button>
+                        <button class="tab-button" onclick="showTab('export')">
+                            📤 Export Complet
+                        </button>
+                    </div>
+                    
+                    <div class="tabs-content">
+                        <!-- Monitoring Tab -->
+                        <div class="tab-panel active" id="monitoringTab">
+                            <div id="judgeMonitoring"></div>
+                        </div>
+                        
+                        <!-- Recap Tab -->
+                        <div class="tab-panel" id="recapTab">
+                            <h3>📋 Tableau Récapitulatif Complet</h3>
+                            <p>Toutes les notations des juges par reprise avec totaux et résultats individuels</p>
+                            
+                            <div id="recapTableContainer">
+                                <div class="message info" style="margin: 20px 0;">
+                                    <p>En attente des données des juges connectés...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Final Result Tab -->
+                        <div class="tab-panel" id="resultTab">
+                            <h3>🏆 Résultat Final de la Rencontre</h3>
+                            <p>Calcul automatique basé sur la majorité des décisions des juges</p>
+                            
+                            <div id="finalResultContainer">
+                                <div class="message info" style="margin: 20px 0;">
+                                    <p>En attente des décisions de tous les juges...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Export Tab -->
+                        <div class="tab-panel" id="exportTab">
+                            <div class="export-section">
+                                <h3>📤 Export Complet des Résultats</h3>
+                                
+                                <div class="export-options">
+                                    <div class="export-card">
+                                        <h4>📊 Feuille de Match Complète</h4>
+                                        <p>Export Excel avec tous les détails : juges, scores, résultat final</p>
+                                        <button class="button-primary" onclick="exportCompleteMatchSheet()">
+                                            Télécharger Excel
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="export-card">
+                                        <h4>📋 Rapport Officiel</h4>
+                                        <p>Document Markdown formaté pour archives officielles</p>
+                                        <button class="button-primary" onclick="exportOfficialReport()">
+                                            Télécharger Rapport
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="export-card">
+                                        <h4>📝 Données Brutes</h4>
+                                        <p>Export JSON complet pour sauvegarde ou analyse</p>
+                                        <button class="button-primary" onclick="exportRawData()">
+                                            Télécharger JSON
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="export-card">
+                                        <h4>🖨️ Feuille de Résultats</h4>
+                                        <p>Version imprimable du résultat final avec détails</p>
+                                        <button class="button-primary" onclick="printFinalResult()">
+                                            Imprimer/PDF
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-top: 30px; text-align: center;">
+                                    <button class="button-success" onclick="exportAllFormats()">
+                                        🚀 Exporter Tous les Formats
+                                    </button>
+                                    <button class="button-warning" onclick="showResetOptions()" style="margin-left: 15px;">
+                                        🔄 Réinitialisation
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Judge Interface avec CPTE Complet -->
+        <div class="hidden fade-in" id="judgeInterface">
+            <!-- Session Status -->
+            <div class="message success" id="judgeSessionStatus">
+                🎯 <strong>Interface CPTE Juge - Conforme Règlement Officiel</strong><br>
+                Session: <span id="judgeSessionCode"></span> • Juge: <span id="judgeInfo"></span>
+            </div>
+
+            <!-- Interface CPTE Complète -->
+            <div class="content-area">
+                <h1>FICHE DE JUGE - SAVATE BOXE FRANÇAISE</h1>
+                
+                <div class="header-section">
+                    <div class="type-selection" id="judgeTypeSelection">
+                        <!-- Sera rempli dynamiquement selon la session -->
+                    </div>
+                    <div class="control-buttons">
+                        <button class="undo-button" id="judgeUndoButton" onclick="undoLastJudgeAction()" disabled>ANNULER DERNIÈRE ACTION</button>
+                        <button class="button-success" onclick="syncJudgeData()">🔄 SYNCHRONISER</button>
+                    </div>
+                </div>
+                
+                <div class="judge-info">
+                    <label>Nom:</label>
+                    <input type="text" id="judgeNameField" placeholder="Nom du juge" readonly>
+                    <span class="completion-indicator complete" id="judgeNameFieldIndicator"></span>
+                    <br><br>
+                    <label>N° Juge:</label>
+                    <input type="text" id="judgeNumberField" placeholder="Numéro" readonly>
+                    <span class="completion-indicator complete" id="judgeNumberFieldIndicator"></span>
+                </div>
+                
+                <div class="fighters-section">
+                    <div class="fighter-info red">
+                        <h3>TIREUR COIN ROUGE</h3>
+                        <input type="text" id="judgeRedFighter" placeholder="Nom du tireur" readonly>
+                        <span class="completion-indicator" id="judgeRedFighterIndicator"></span>
+                    </div>
+                    <div class="fighter-info blue">
+                        <h3>TIREUR COIN BLEU</h3>
+                        <input type="text" id="judgeBlueFighter" placeholder="Nom du tireur" readonly>
+                        <span class="completion-indicator" id="judgeBlueFighterIndicator"></span>
+                    </div>
+                </div>
+                
+                <div id="judgeEqualityWarning" class="equality-warning" style="display: none;">
+                    ⚠️ ÉGALITÉ DÉTECTÉE - Un bonus doit obligatoirement être attribué à l'un des deux tireurs !
+                </div>
+                
+                <div id="judgeValidationAlert" class="validation-warning" style="display: none;">
+                    <div id="judgeValidationMessage"></div>
+                </div>
+                
+                <div id="judgeValidationSuccess" class="validation-success" style="display: none;">
+                    ✅ Toutes les informations obligatoires sont complètes !
+                </div>
+                
+                <table class="scoring-table" id="judgeScoringTable">
+                    <colgroup id="judgeColgroup">
+                        <!-- Définition des colonnes qui s'adaptent au type -->
+                    </colgroup>
+                    <thead id="judgeTableHeader">
+                        <!-- En-têtes générés dynamiquement -->
+                    </thead>
+                    <tbody id="judgeTableBody">
+                        <!-- Corps du tableau généré dynamiquement -->
+                    </tbody>
+                </table>
+                
+                <div id="judgeDisqualificationMessage" style="display: none;" class="disqualification">
+                    <h2>DISQUALIFICATION</h2>
+                    <p id="judgeDisqualificationText"></p>
+                </div>
+                
+                <div id="judgeAbandonMessage" style="display: none;" class="abandon-message">
+                    <h2>ABANDON</h2>
+                    <p id="judgeAbandonText"></p>
+                </div>
+                
+                <div class="export-buttons">
+                    <button class="export-button excel" onclick="exportJudgeToExcel()">📊 Exporter en Excel</button>
+                    <button class="export-button markdown" onclick="exportJudgeToMarkdown()">📝 Exporter en Markdown</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Content Area -->
+        <div class="content-area" id="contentArea">
+            <div style="text-align: center; padding: 60px 20px;">
+                <h2>👋 Bienvenue dans SAVATE OFFICIALS</h2>
+                <p style="margin-top: 20px; font-size: 18px; color: #7f8c8d;">
+                    🌟 Application Professionnelle avec Interface CPTE Complète
+                </p>
+                
+                <div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, rgba(46,204,113,0.1) 0%, rgba(39,174,96,0.1) 100%); border-radius: 15px; border: 2px solid rgba(46,204,113,0.3);">
+                    <h4 style="color: #27ae60; margin-bottom: 15px;">✅ INTERFACE CPTE COMPLÈTE ET CONFORME ✅</h4>
+                    <ul style="list-style: none; color: #2c3e50; line-height: 1.8; font-size: 15px; text-align: left; max-width: 700px; margin: 0 auto;">
+                        <li>📋 Interface CPTE identique au règlement officiel</li>
+                        <li>🎯 Validation automatique des règles de Savate</li>
+                        <li>⚡ Scores 3-2-1 avec validation des combinaisons</li>
+                        <li>⚠️ Gestion avertissements et comptes (A/C)</li>
+                        <li>🔒 Verrouillage des reprises complétées</li>
+                        <li>🏆 Calcul automatique des totaux et résultats</li>
+                        <li>❌ Détection automatique disqualifications/abandons</li>
+                        <li>🎲 Gestion égalité avec bonus obligatoire</li>
+                        <li>↶ Fonction Annuler avec historique d'actions</li>
+                        <li>🌐 Synchronisation WebRTC temps réel</li>
+                        <li>👑 Monitoring délégué avec fiches complètes</li>
+                        <li>📊 Export Excel et Markdown</li>
+                        <li>💾 Sauvegarde automatique</li>
+                        <li>📱 Interface 100% responsive</li>
+                        <li>🛡️ Validation complète des champs obligatoires</li>
+                    </ul>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, rgba(52,152,219,0.1) 0%, rgba(41,128,185,0.1) 100%); border-radius: 10px; border: 2px solid rgba(52,152,219,0.3);">
+                    <h5 style="color: #2980b9; margin-bottom: 10px;">🔧 INTERFACE CPTE PROFESSIONNELLE</h5>
+                    <p style="color: #2c3e50; font-size: 14px; margin: 0;">
+                        🥊 Tous Types de Combats • ⚖️ Validation Règlement • 🔄 Sync Temps Réel<br>
+                        📋 Export Officiel • 🎯 Indicateurs Visuels • ♿ Accessibilité Complète
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de réinitialisation pour délégué -->
+    <div class="reset-modal hidden" id="resetModal">
+        <div class="reset-modal-content">
+            <button class="modal-close" onclick="closeResetModal()">&times;</button>
+            <h2>🔄 Options de Réinitialisation</h2>
+            <p style="margin-bottom: 30px; color: #666;">Choisissez le type de réinitialisation à effectuer:</p>
+            
+            <div class="reset-option partial" onclick="performPartialReset()">
+                <h3>🔄 Réinitialisation Partielle</h3>
+                <p><strong>Remet à zéro:</strong> Tous les scores, avertissements, comptes, abandons, bonus et noms des tireurs</p>
+                <p><strong>Conserve:</strong> La session en cours, les connexions des juges, leurs noms et numéros</p>
+                <p style="margin-top: 10px; font-style: italic; color: #f39c12;">⚠️ Idéal pour un nouveau combat avec les mêmes juges</p>
+            </div>
+
+            <div class="reset-option complete" onclick="performCompleteReset()">
+                <h3>🔥 Réinitialisation Complète</h3>
+                <p><strong>Remet à zéro:</strong> Tous les données, ferme toutes les connexions et génère une nouvelle session</p>
+                <p><strong>Action:</strong> Retour à l'écran de sélection de rôle pour recommencer</p>
+                <p style="margin-top: 10px; font-style: italic; color: #e74c3c;">⚠️ Nécessite une reconnexion de tous les juges</p>
+            </div>
+
+            <div style="margin-top: 30px;">
+                <button class="button-primary" onclick="closeResetModal()">❌ Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🚀 SAVATE OFFICIALS - Interface CPTE Complète Initialisée');
+        console.log('📱 Version: 4.2.0 - Interface CPTE Professionnelle Finalisée');
+        console.log('🔧 Fonctionnalités: WebRTC P2P + CPTE Complète + Onglets Délégué + Validation + Export');
+
+        // =====================
+        // VARIABLES GLOBALES COMPLÈTES
+        // =====================
+        
+        let app = {
+            version: '4.2.0',
+            webrtc: {
+                peer: null,
+                connections: new Map(),
+                isHost: false,

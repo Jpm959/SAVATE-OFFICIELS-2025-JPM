@@ -1,0 +1,700 @@
+                };
+            }
+            
+            Object.assign(app.data.judges[judgeKey], {
+                connected: connectionData.connected,
+                name: connectionData.name || 'Nom non défini',
+                number: connectionData.number || 'Non défini',
+                peerId: fromPeer,
+                lastUpdate: Date.now(),
+                connectionTime: Date.now()
+            });
+            
+            if (app.session.role === 'delegate') {
+                updateJudgeMonitoring();
+                updateRecapTable();
+                updateFinalResult();
+            }
+            
+            showNotification(`🎉 Juge ${connectionData.judgeId} (${connectionData.name}) connecté!`, 'success');
+        }
+
+        function receiveJudgeData(judgeData, fullMessage) {
+            console.log('📥 Données juge reçues:', judgeData);
+            const judgeKey = `judge${judgeData.judgeId}`;
+            
+            if (!app.data.judges[judgeKey]) {
+                app.data.judges[judgeKey] = {};
+            }
+            
+            app.data.judges[judgeKey] = {
+                ...app.data.judges[judgeKey],
+                ...judgeData,
+                lastUpdate: Date.now(),
+                syncSource: 'webrtc'
+            };
+            
+            if (app.session.role === 'delegate') {
+                updateJudgeMonitoring();
+                updateRecapTable();
+                updateFinalResult();
+            }
+            
+            showNotification(`📡 Juge ${judgeData.judgeId} synchronisé`, 'success', 3000);
+        }
+
+        function receiveSessionData(sessionData) {
+            console.log('📥 Données session:', sessionData);
+            
+            if (sessionData.session) {
+                const currentJudgeName = app.session.judgeName;
+                const currentJudgeNumber = app.session.judgeNumber;
+                
+                app.session = { ...app.session, ...sessionData.session };
+                
+                if (currentJudgeName && app.session.role === 'judge') {
+                    app.session.judgeName = currentJudgeName;
+                }
+                if (currentJudgeNumber && app.session.role === 'judge') {
+                    app.session.judgeNumber = currentJudgeNumber;
+                }
+            }
+            
+            if (sessionData.fighters) {
+                app.data.fighters = sessionData.fighters;
+                updateFighterNamesInInterface();
+            }
+            
+            if (sessionData.judges) {
+                app.data.judges = sessionData.judges;
+            }
+            
+            if (app.session.role === 'judge') {
+                updateJudgeRounds();
+                createJudgeTableStructure();
+                updateFighterNamesInInterface();
+            }
+        }
+
+        function receiveFighterNames(fighterData) {
+            console.log('📥 Noms tireurs:', fighterData);
+            app.data.fighters = { ...app.data.fighters, ...fighterData };
+            updateFighterNamesInInterface();
+        }
+
+        function sendJudgeConnectionData(conn) {
+            try {
+                const connectionData = {
+                    judgeId: app.session.judgeId,
+                    name: app.session.judgeName,
+                    number: app.session.judgeNumber,
+                    connected: true,
+                    timestamp: Date.now(),
+                    deviceId: app.session.deviceId
+                };
+                
+                conn.send({
+                    type: 'judge_connection',
+                    data: connectionData,
+                    timestamp: Date.now(),
+                    from: app.webrtc.peerId,
+                    sessionCode: app.session.code
+                });
+                
+                console.log('📤 Données connexion juge envoyées');
+            } catch (error) {
+                console.error('❌ Erreur envoi connexion:', error);
+            }
+        }
+
+        function sendSessionDataToNewPeer(conn) {
+            try {
+                const sessionData = {
+                    session: {
+                        id: app.session.id,
+                        code: app.session.code,
+                        fightType: app.session.fightType,
+                        judgeCount: app.session.judgeCount,
+                        rounds: app.session.rounds,
+                        status: app.session.status
+                    },
+                    fighters: app.data.fighters,
+                    judges: app.data.judges,
+                    timestamp: Date.now()
+                };
+                
+                conn.send({
+                    type: 'session_data',
+                    data: sessionData,
+                    timestamp: Date.now(),
+                    from: app.webrtc.peerId,
+                    sessionCode: app.session.code
+                });
+                
+                console.log('📤 Données session envoyées');
+            } catch (error) {
+                console.error('❌ Erreur envoi session:', error);
+            }
+        }
+
+        function updateSyncIndicator(status = null, type = null) {
+            const indicator = document.getElementById('syncIndicator');
+            const statusSpan = document.getElementById('syncStatus');
+            const devicesCount = document.getElementById('devicesCount');
+            const icon = document.getElementById('syncIcon');
+            
+            if (indicator && !indicator.classList.contains('hidden')) {
+                if (status) {
+                    statusSpan.textContent = status;
+                }
+                
+                if (type) {
+                    indicator.className = `sync-indicator ${type}`;
+                    
+                    switch(type) {
+                        case 'connected':
+                            icon.textContent = '✅';
+                            break;
+                        case 'syncing':
+                            icon.textContent = '🔄';
+                            break;
+                        case 'offline':
+                            icon.textContent = '❌';
+                            break;
+                        default:
+                            icon.textContent = '⚡';
+                    }
+                }
+                
+                const deviceCount = app.data.connectedDevices.size;
+                const judgeCount = Object.keys(app.data.judges).filter(k => app.data.judges[k].connected).length;
+                devicesCount.textContent = `${deviceCount} appareils • ${judgeCount} juges`;
+            }
+        }
+
+        function updatePeersList() {
+            app.data.connectedDevices.clear();
+            app.webrtc.connections.forEach((conn, peerId) => {
+                if (conn.open) {
+                    app.data.connectedDevices.add(peerId);
+                }
+            });
+            updateSyncIndicator();
+        }
+
+        function cleanupJudgeData(peerId) {
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                if (judge.peerId === peerId) {
+                    judge.connected = false;
+                    judge.lastUpdate = Date.now();
+                }
+            });
+            
+            if (app.session.role === 'delegate') {
+                updateJudgeMonitoring();
+            }
+        }
+
+        // =====================
+        // GESTIONNAIRE DE SESSIONS
+        // =====================
+        
+        function selectRole(role) {
+            app.session.role = role;
+            document.getElementById('roleSelector').classList.add('hidden');
+            
+            if (role === 'delegate') {
+                document.getElementById('delegateInterface').classList.remove('hidden');
+                showNotification('👑 Mode délégué activé', 'success');
+            } else if (role === 'judge') {
+                document.getElementById('judgeAccessSection').classList.remove('hidden');
+                showNotification('⚖️ Mode juge activé', 'info');
+            }
+        }
+
+        function goBack() {
+            document.getElementById('judgeAccessSection').classList.add('hidden');
+            document.getElementById('delegateInterface').classList.add('hidden');
+            document.getElementById('judgeInterface').classList.add('hidden');
+            document.getElementById('roleSelector').classList.remove('hidden');
+            document.getElementById('contentArea').style.display = 'block';
+            
+            const syncIndicator = document.getElementById('syncIndicator');
+            if (syncIndicator) syncIndicator.classList.add('hidden');
+            
+            app.session.role = '';
+        }
+
+        function createSession() {
+            console.log('🚀 Création session...');
+            
+            const createButton = document.getElementById('createSessionButton');
+            createButton.disabled = true;
+            createButton.innerHTML = '<div class="loading-spinner"></div> Création...';
+            
+            app.session.fightType = document.querySelector('input[name="fightType"]:checked').value;
+            app.session.judgeCount = parseInt(document.querySelector('input[name="judgeCount"]:checked').value);
+            app.session.rounds = getRoundsFromFightType(app.session.fightType);
+            
+            app.session.id = generateSessionId();
+            app.session.code = generateUniqueCode();
+            app.session.initialized = true;
+            app.session.role = 'delegate';
+            app.session.startTime = Date.now();
+            app.session.status = 'active';
+            
+            initializeWebRTC().then(() => {
+                console.log('✅ WebRTC délégué initialisé');
+                
+                document.getElementById('configSection').classList.add('hidden');
+                showDelegateInterface();
+                
+                showNotification('✅ Session WebRTC créée!', 'success');
+                
+                createButton.disabled = false;
+                createButton.innerHTML = '🚀 Créer Session WebRTC';
+                
+            }).catch(error => {
+                console.error('❌ Erreur WebRTC:', error);
+                showNotification('❌ Erreur création: ' + error.message, 'error');
+                
+                createButton.disabled = false;
+                createButton.innerHTML = '🚀 Créer Session WebRTC';
+            });
+        }
+
+        function accessJudgeSheet() {
+            const accessKey = document.getElementById('accessKeyInput').value.trim();
+            const judgeName = document.getElementById('judgeNameInput').value.trim();
+            const judgeNumber = document.getElementById('judgeNumberInput').value.trim();
+            
+            if (!accessKey || !judgeName || !judgeNumber) {
+                showNotification('⚠️ Veuillez remplir tous les champs', 'error');
+                return;
+            }
+            
+            if (!/^\d{4}$/.test(accessKey)) {
+                showNotification('❌ Code à 4 chiffres requis', 'error');
+                return;
+            }
+            
+            if (judgeName.length < 2) {
+                showNotification('❌ Nom trop court', 'error');
+                return;
+            }
+            
+            const connectButton = document.getElementById('connectButton');
+            connectButton.disabled = true;
+            connectButton.innerHTML = '<div class="loading-spinner"></div> Connexion...';
+            
+            app.session.code = accessKey;
+            app.session.judgeName = judgeName;
+            app.session.judgeNumber = judgeNumber;
+            app.session.judgeId = Math.floor(Math.random() * 1000) + 1;
+            app.session.role = 'judge';
+            
+            initializeWebRTC().then(() => {
+                const delegatePeerId = `delegate_${accessKey}`;
+                return connectToPeer(delegatePeerId);
+            }).then(() => {
+                console.log('✅ Connexion juge établie');
+                document.getElementById('judgeAccessSection').classList.add('hidden');
+                showJudgeInterface();
+                
+                showNotification('✅ Connexion WebRTC établie!', 'success');
+                
+                connectButton.disabled = false;
+                connectButton.innerHTML = '🚪 Se connecter WebRTC';
+                
+            }).catch(error => {
+                console.error('❌ Erreur connexion:', error);
+                showNotification('❌ Erreur: ' + error.message, 'error');
+                
+                connectButton.disabled = false;
+                connectButton.innerHTML = '🚪 Se connecter WebRTC';
+            });
+        }
+
+        // =====================
+        // INTERFACE DÉLÉGUÉ
+        // =====================
+
+        function showDelegateInterface() {
+            document.getElementById('delegateDashboard').classList.remove('hidden');
+            document.getElementById('contentArea').style.display = 'none';
+            document.getElementById('syncIndicator').classList.remove('hidden');
+            
+            // Afficher infos session
+            document.getElementById('sessionCodeDisplay').textContent = app.session.code;
+            document.getElementById('fightTypeDisplay').textContent = getFightTypeLabel(app.session.fightType);
+            document.getElementById('judgeCountDisplay').textContent = app.session.judgeCount;
+            document.getElementById('roundsDisplay').textContent = app.session.rounds;
+            
+            updateJudgeMonitoring();
+            
+            // Mise à jour périodique
+            setInterval(() => {
+                if (app.session.role === 'delegate' && app.session.initialized) {
+                    const activeTab = document.querySelector('.tab-panel.active');
+                    if (activeTab) {
+                        const tabId = activeTab.id;
+                        switch(tabId) {
+                            case 'monitoringTab':
+                                updateJudgeMonitoring();
+                                break;
+                            case 'recapTab':
+                                updateRecapTable();
+                                break;
+                            case 'resultTab':
+                                updateFinalResult();
+                                break;
+                        }
+                    }
+                }
+            }, 3000);
+        }
+
+        function updateFighterNames() {
+            const redName = document.getElementById('fighterRedName').value.trim();
+            const blueName = document.getElementById('fighterBlueName').value.trim();
+            
+            // Sauvegarder l'état avant modification
+            saveDelegateState('MODIFICATION NOMS TIREURS', {
+                previousRed: app.data.fighters.red,
+                previousBlue: app.data.fighters.blue,
+                newRed: redName,
+                newBlue: blueName
+            });
+            
+            app.data.fighters.red = redName;
+            app.data.fighters.blue = blueName;
+            
+            sendToAll({
+                type: 'fighter_names',
+                data: app.data.fighters
+            }, 'normal');
+            
+            updateJudgeMonitoring();
+            showNotification('📝 Noms mis à jour', 'info', 2000);
+        }
+
+        // =====================
+        // SYSTÈME D'ONGLETS DÉLÉGUÉ
+        // =====================
+
+        function showTab(tabName) {
+            // Masquer tous les onglets
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // Désactiver tous les boutons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Activer l'onglet sélectionné
+            const targetTab = document.getElementById(tabName + 'Tab');
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+            
+            // Activer le bon bouton
+            const buttons = document.querySelectorAll('.tab-button');
+            const buttonIndex = ['monitoring', 'recap', 'result', 'export'].indexOf(tabName);
+            if (buttonIndex !== -1 && buttons[buttonIndex]) {
+                buttons[buttonIndex].classList.add('active');
+            }
+            
+            // Mettre à jour le contenu
+            setTimeout(() => {
+                switch(tabName) {
+                    case 'monitoring':
+                        updateJudgeMonitoring();
+                        break;
+                    case 'recap':
+                        updateRecapTable();
+                        break;
+                    case 'result':
+                        updateFinalResult();
+                        break;
+                    case 'export':
+                        break;
+                }
+            }, 100);
+        }
+
+        function updateJudgeMonitoring() {
+            const container = document.getElementById('judgeMonitoring');
+            if (!container) return;
+            
+            container.innerHTML = '<h3>📊 Monitoring des Juges - Interface CPTE Temps Réel</h3>';
+            
+            const judgeCount = Object.keys(app.data.judges).length;
+            if (judgeCount === 0) {
+                container.innerHTML += `
+                    <div class="message info">
+                        <h4>🎯 En attente de connexion des juges...</h4>
+                        <p><strong>Code de session:</strong> ${app.session.code}</p>
+                        <p><strong>Type:</strong> ${getFightTypeLabel(app.session.fightType)}</p>
+                        <p>Les juges doivent utiliser ce code pour se connecter.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Créer une fiche pour chaque juge
+            Object.keys(app.data.judges).forEach(judgeKey => {
+                const judge = app.data.judges[judgeKey];
+                const judgeContainer = createJudgeMonitoringCard(judge);
+                container.appendChild(judgeContainer);
+            });
+        }
+
+        function createJudgeMonitoringCard(judge) {
+            const container = document.createElement('div');
+            container.className = `judge-sheet-container ${judge.connected ? 'connected' : ''}`;
+            container.id = `judge-monitor-${judge.id}`;
+            
+            // Header avec statut
+            const header = document.createElement('div');
+            header.className = 'judge-sheet-header';
+            header.innerHTML = `
+                <div>
+                    <h3>👨‍⚖️ Juge ${judge.id} - ${judge.name || 'Nom non défini'}</h3>
+                    <p><strong>Numéro:</strong> ${judge.number || 'Non défini'}</p>
+                </div>
+                <div class="judge-sheet-status">
+                    <div class="status-indicator ${judge.connected ? 'connected' : ''}"></div>
+                    <span>${judge.connected ? 'Connecté' : 'Déconnecté'}</span>
+                    <span style="font-size: 11px; color: #7f8c8d; margin-left: 10px;">
+                        ${judge.lastUpdate ? formatTime(judge.lastUpdate) : 'Jamais'}
+                    </span>
+                </div>
+            `;
+            
+            // Table CPTE complète identique à celle des juges
+            const table = createCompleteMonitoringTable(judge);
+            
+            container.appendChild(header);
+            container.appendChild(table);
+            
+            return container;
+        }
+
+        function createCompleteMonitoringTable(judge) {
+            const isCombatType = isCombat();
+            const table = document.createElement('table');
+            table.className = 'scoring-table';
+            table.style.fontSize = '11px';
+            table.style.tableLayout = 'fixed';
+            
+            // Créer l'en-tête
+            let headerHTML = '';
+            if (isCombatType) {
+                headerHTML = `
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width: 120px;">NOTATION</th>
+                            <th colspan="4" style="background-color: #ef5350; color: white;">COIN ROUGE</th>
+                            <th colspan="4" style="background-color: #42a5f5; color: white;">COIN BLEU</th>
+                        </tr>
+                        <tr>
+                            <th class="corner-red">Reprise</th>
+                            <th class="corner-red">NOTE</th>
+                            <th class="corner-red">AVT</th>
+                            <th class="corner-red">CPTE</th>
+                            <th class="corner-blue">Reprise</th>
+                            <th class="corner-blue">NOTE</th>
+                            <th class="corner-blue">AVT</th>
+                            <th class="corner-blue">CPTE</th>
+                        </tr>
+                    </thead>
+                `;
+            } else {
+                headerHTML = `
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="width: 120px;">NOTATION</th>
+                            <th colspan="3" style="background-color: #ef5350; color: white;">COIN ROUGE</th>
+                            <th colspan="3" style="background-color: #42a5f5; color: white;">COIN BLEU</th>
+                        </tr>
+                        <tr>
+                            <th class="corner-red">Reprise</th>
+                            <th class="corner-red">NOTE</th>
+                            <th class="corner-red">AVT</th>
+                            <th class="corner-blue">Reprise</th>
+                            <th class="corner-blue">NOTE</th>
+                            <th class="corner-blue">AVT</th>
+                        </tr>
+                    </thead>
+                `;
+            }
+            
+            // Créer le corps du tableau
+            const notationText = isCombatType ? 
+                `Égalité: 2/2<br>Gagné: 3/2<br>Dominé: 3/1<br>Non décision: X/X<br>Avertissement: -1<br>Compte: -1<br>Bonus: +1` :
+                `Égalité: 2/2<br>Gagné: 3/2<br>Dominé: 3/1<br>Non décision: X/X<br>Avertissement: -1<br>Bonus: +1`;
+            
+            let bodyHTML = '<tbody>';
+            
+            // Lignes de reprises
+            for (let i = 1; i <= app.session.rounds; i++) {
+                const rowspanAttr = i === 1 ? `rowspan="${app.session.rounds}"` : '';
+                const notationCell = i === 1 ? `<td ${rowspanAttr} style="vertical-align: top; font-size: 9px; padding: 3px;"><small>${notationText}</small></td>` : '';
+                
+                // Récupérer les données du juge
+                const roundScore = judge.scores && judge.scores[i] ? judge.scores[i] : null;
+                const redScore = roundScore ? roundScore.red : '-';
+                const blueScore = roundScore ? roundScore.blue : '-';
+                
+                // Avertissements
+                const redWarnings = judge.warnings && judge.warnings.red && judge.warnings.red[i] ? 'A'.repeat(judge.warnings.red[i]) : '';
+                const blueWarnings = judge.warnings && judge.warnings.blue && judge.warnings.blue[i] ? 'A'.repeat(judge.warnings.blue[i]) : '';
+                
+                if (isCombatType) {
+                    // Comptes pour les combats
+                    const redComptes = judge.comptes && judge.comptes.red && judge.comptes.red[i] ? 'C'.repeat(judge.comptes.red[i]) : '';
+                    const blueComptes = judge.comptes && judge.comptes.blue && judge.comptes.blue[i] ? 'C'.repeat(judge.comptes.blue[i]) : '';
+                    
+                    bodyHTML += `
+                        <tr>
+                            ${notationCell}
+                            <td class="corner-red">${i}</td>
+                            <td class="corner-red" style="font-weight: bold;">${redScore}</td>
+                            <td class="corner-red" style="font-size: 10px; color: #dc3545;">${redWarnings}</td>
+                            <td class="corner-red" style="font-size: 10px; color: #6c757d;">${redComptes}</td>
+                            <td class="corner-blue">${i}</td>
+                            <td class="corner-blue" style="font-weight: bold;">${blueScore}</td>
+                            <td class="corner-blue" style="font-size: 10px; color: #dc3545;">${blueWarnings}</td>
+                            <td class="corner-blue" style="font-size: 10px; color: #6c757d;">${blueComptes}</td>
+                        </tr>
+                    `;
+                } else {
+                    bodyHTML += `
+                        <tr>
+                            ${notationCell}
+                            <td class="corner-red">${i}</td>
+                            <td class="corner-red" style="font-weight: bold;">${redScore}</td>
+                            <td class="corner-red" style="font-size: 10px; color: #dc3545;">${redWarnings}</td>
+                            <td class="corner-blue">${i}</td>
+                            <td class="corner-blue" style="font-weight: bold;">${blueScore}</td>
+                            <td class="corner-blue" style="font-size: 10px; color: #dc3545;">${blueWarnings}</td>
+                        </tr>
+                    `;
+                }
+            }
+            
+            // Calculer les totaux
+            let redSubtotal1 = 0, blueSubtotal1 = 0;
+            let redWarningTotal = 0, blueWarningTotal = 0;
+            let redCompteTotal = 0, blueCompteTotal = 0;
+            
+            // Somme des scores
+            for (let i = 1; i <= app.session.rounds; i++) {
+                const roundScore = judge.scores && judge.scores[i] ? judge.scores[i] : null;
+                if (roundScore) {
+                    redSubtotal1 += roundScore.red || 0;
+                    blueSubtotal1 += roundScore.blue || 0;
+                }
+            }
+            
+            // Somme des avertissements
+            if (judge.warnings) {
+                if (judge.warnings.red) {
+                    for (let round in judge.warnings.red) {
+                        redWarningTotal += judge.warnings.red[round] || 0;
+                    }
+                }
+                if (judge.warnings.blue) {
+                    for (let round in judge.warnings.blue) {
+                        blueWarningTotal += judge.warnings.blue[round] || 0;
+                    }
+                }
+            }
+            
+            // Somme des comptes (combats seulement)
+            if (isCombatType && judge.comptes) {
+                if (judge.comptes.red) {
+                    for (let round in judge.comptes.red) {
+                        redCompteTotal += judge.comptes.red[round] || 0;
+                    }
+                }
+                if (judge.comptes.blue) {
+                    for (let round in judge.comptes.blue) {
+                        blueCompteTotal += judge.comptes.blue[round] || 0;
+                    }
+                }
+            }
+            
+            const redSubtotal2 = redSubtotal1 - redWarningTotal - redCompteTotal;
+            const blueSubtotal2 = blueSubtotal1 - blueWarningTotal - blueCompteTotal;
+            const redBonusValue = judge.bonuses ? (judge.bonuses.red || 0) : 0;
+            const blueBonusValue = judge.bonuses ? (judge.bonuses.blue || 0) : 0;
+            const redTotal = redSubtotal2 + redBonusValue;
+            const blueTotal = blueSubtotal2 + blueBonusValue;
+            
+            // Lignes de totaux
+            if (isCombatType) {
+                bodyHTML += `
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Sous TOTAUX 1</td>
+                        <td colspan="3" class="corner-red" style="text-align: center; font-weight: bold;">${redSubtotal1}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center; font-weight: bold;">${blueSubtotal1}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Avertissements</td>
+                        <td colspan="3" class="corner-red" style="text-align: center; font-weight: bold;">${redWarningTotal ? -redWarningTotal : 0}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center; font-weight: bold;">${blueWarningTotal ? -blueWarningTotal : 0}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Compte</td>
+                        <td colspan="3" class="corner-red" style="text-align: center; font-weight: bold;">${redCompteTotal ? -redCompteTotal : 0}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center; font-weight: bold;">${blueCompteTotal ? -blueCompteTotal : 0}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Sous TOTAUX 2</td>
+                        <td colspan="3" class="corner-red" style="text-align: center; font-weight: bold;">${redSubtotal2}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center; font-weight: bold;">${blueSubtotal2}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Bonus</td>
+                        <td colspan="3" class="corner-red" style="text-align: center; font-weight: bold;">${redBonusValue}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="3" class="corner-blue" style="text-align: center; font-weight: bold;">${blueBonusValue}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #e9ecef; font-size: 12px;">
+                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">TOTAUX</td>
+                        <td colspan="3" class="corner-red" style="text-align: center; font-weight: bold; font-size: 14px;">${redTotal}</td>
+                        <td class="corner-red abandon-cell ${judge.abandons && judge.abandons.red ? 'abandoned' : ''}" style="font-size: 8px;">${judge.abandons && judge.abandons.red ? 'ABANDON' : 'EN LICE'}</td>
+                        <td colspan="3" class="corner-blue" style="text-align: center; font-weight: bold; font-size: 14px;">${blueTotal}</td>
+                        <td class="corner-blue abandon-cell ${judge.abandons && judge.abandons.blue ? 'abandoned' : ''}" style="font-size: 8px;">${judge.abandons && judge.abandons.blue ? 'ABANDON' : 'EN LICE'}</td>
+                    </tr>
+                    <tr style="background: #e1bee7; font-size: 11px;">
+                        <td style="text-align: left; padding-left: 5px; font-weight: bold;">DÉCISION</td>
+                        <td colspan="8" style="font-weight: bold; text-align: center;">${judge.result || 'En cours...'}</td>
+                    </tr>
+                `;
+            } else {
+                bodyHTML += `
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Sous TOTAUX 1</td>
+                        <td colspan="2" class="corner-red" style="text-align: center; font-weight: bold;">${redSubtotal1}</td>
+                        <td class="corner-red"></td>
+                        <td colspan="2" class="corner-blue" style="text-align: center; font-weight: bold;">${blueSubtotal1}</td>
+                        <td class="corner-blue"></td>
+                    </tr>
+                    <tr style="background: #f8f9fa; font-size: 10px;">
+                        <td style="text-align: left; padding-left: 5px;">Avertissements</td>
+                        <td colspan="2" class="corner-red" style="text-align: center; font-weight: bold;">${redWarningTotal ? -redWarningTotal : 0}</td>
+                        <td class="corner-red"></td>

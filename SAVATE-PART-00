@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0055A4">
+    <title>SAVATE OFFICIALS - Application CPTE Complète (Fusion)</title>
+    
+    <!-- PeerJS CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    
+    <style>
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #E8F4F8 0%, #F0F0F5 50%, #FFF5F5 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            padding: 30px;
+            min-height: calc(100vh - 40px);
+        }
+        
+        /* En-tête amélioré */
+        .app-header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 50px 30px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFB 100%);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,85,164,0.15);
+            border: 2px solid rgba(0,85,164,0.1);
+        }
+        
+        /* Titre SAVATE OFFICIALS en tricolore sophistiqué */
+        .app-title {
+            font-size: clamp(36px, 6vw, 56px);
+            font-weight: 900;
+            margin-bottom: 15px;
+            letter-spacing: 3px;
+            line-height: 1.2;
+            text-transform: uppercase;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .app-title .word-savate {
+            background: linear-gradient(135deg, #0055A4 0%, #0066CC 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: inline-block;
+            margin-right: 15px;
+            filter: drop-shadow(2px 2px 4px rgba(0,85,164,0.3));
+        }
+        
+        .app-title .word-officials {
+            background: linear-gradient(135deg, #EF4135 0%, #FF5544 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: inline-block;
+            filter: drop-shadow(2px 2px 4px rgba(239,65,53,0.3));
+        }
+        
+        .app-subtitle {
+            font-size: clamp(14px, 2vw, 18px);
+            color: #0055A4;
+            font-weight: 600;
+            margin-top: 15px;
+            letter-spacing: 1px;
+        }
+        
+        .app-features {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .feature-badge {
+            background: linear-gradient(135deg, #0055A4 0%, #0066CC 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,85,164,0.3);
+            letter-spacing: 0.5px;
+        }
+
+        /* Logo SAVATE OFFICIALS - conservé identique */
+        .savate-logo {
+            width: 120px;
+            height: 120px;
+            margin: 20px auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .savate-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Indicateur de synchronisation amélioré */
+        .sync-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #0055A4 0%, #0066CC 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 8px 25px rgba(0,85,164,0.4);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: pulse 2s infinite;
+            min-width: 220px;
+            transition: all 0.3s ease;
+        }
+        
+        .sync-indicator.syncing {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            animation: pulse 0.5s infinite;
+        }
+        
+        .sync-indicator.offline {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+        
+        .sync-indicator.connected {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }
+        
+        .sync-devices-count {
+            background: rgba(255,255,255,0.3);
+            border-radius: 15px;
+            padding: 4px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        /* Sélection de rôle améliorée */
+        .role-selector {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,251,0.95) 100%);
+            padding: 50px;
+            border-radius: 25px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(0,85,164,0.15);
+            border: 2px solid rgba(0,85,164,0.1);
+        }
+        
+        .role-selector h2 {
+            color: #0055A4;
+            font-size: 28px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        
+        .role-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+        }
+        
+        .role-button {
+            background: linear-gradient(135deg, #0055A4 0%, #0066CC 100%);
+            color: white;
+            border: none;
+            padding: 40px 50px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 20px;
+            transition: all 0.4s;
+            min-width: 300px;
+            box-shadow: 0 15px 40px rgba(0,85,164,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .role-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        
+        .role-button:hover::before {
+            left: 100%;
+        }
+        
+        .role-button:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 25px 60px rgba(0,85,164,0.4);
+        }
+        
+        .role-button.delegate {
+            background: linear-gradient(135deg, #EF4135 0%, #FF5544 100%);
+            box-shadow: 0 15px 40px rgba(239,65,53,0.3);
+        }
+        
+        .role-button.delegate:hover {
+            box-shadow: 0 25px 60px rgba(239,65,53,0.4);
+        }
+        
+        /* Section d'accès améliorée */
+        .access-key-input {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,251,0.95) 100%);
+            padding: 50px;
+            border-radius: 25px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 15px 40px rgba(0,85,164,0.15);
+            border: 2px solid rgba(0,85,164,0.1);
+        }
+        
+        .access-key-input h3 {
+            color: #0055A4;
+            font-size: 26px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        
+        .access-key-input input {
+            padding: 18px 25px;
+            border: 3px solid #0055A4;
+            border-radius: 15px;
+            font-size: 18px;
+            text-align: center;
+            margin: 15px 10px;
+            min-width: 300px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            letter-spacing: 2px;
+            background: rgba(255,255,255,0.95);
+            transition: all 0.3s ease;
+        }
+        
+        .access-key-input input:focus {
+            outline: none;
+            border-color: #0066CC;
+            box-shadow: 0 0 0 4px rgba(0,85,164,0.1);
+            transform: scale(1.02);
+        }
+        
+        /* Configuration améliorée */
+        .config-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 25px;
+            padding: 40px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,251,0.95) 100%);
+            border-radius: 25px;
+            box-shadow: 0 15px 40px rgba(0,85,164,0.15);
+            border: 2px solid rgba(0,85,164,0.1);
+        }
+        
+        .config-group {
+            text-align: center;
+            padding: 25px;
+            background: rgba(255,255,255,0.8);
+            border-radius: 20px;
+            border: 2px solid rgba(0,85,164,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .config-group:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,85,164,0.2);
+        }
+        
+        .config-group h3 {
+            margin-bottom: 20px;
+            color: #0055A4;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .config-group input[type="radio"] {
+            display: none;
+        }
+        
+        .config-group label {
+            display: block;
+            margin: 12px 0;
+            padding: 18px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.9);
+            font-size: 15px;
+            font-weight: 500;
+            border: 2px solid transparent;
+            position: relative;
+        }
+        
+        .config-group label:hover {
+            background: rgba(0,85,164,0.08);
+            border-color: rgba(0,85,164,0.3);
+            transform: translateX(5px);
+        }
+        
+        .config-group input[type="radio"]:checked + label {
+            background: linear-gradient(135deg, rgba(0,85,164,0.15) 0%, rgba(0,102,204,0.15) 100%);
+            border-color: #0055A4;
+            transform: scale(1.03);
+            box-shadow: 0 4px 20px rgba(0,85,164,0.25);
+            font-weight: 600;
+        }
+        
+        .config-group input[type="radio"]:checked + label::after {
+            content: '✓';
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #0055A4;
+            font-weight: bold;
+            font-size: 20px;
+        }
+
+        /* Onglets améliorés */
+        .tabs-container {
+            margin-top: 30px;
+        }
+        
+        .tabs-header {
+            display: flex;
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,251,0.95) 100%);
+            border-radius: 20px 20px 0 0;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0,85,164,0.1);
+            border: 2px solid rgba(0,85,164,0.1);
+            border-bottom: none;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 20px 25px;
+            background: rgba(255,255,255,0.7);
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            color: #666;
+            transition: all 0.3s ease;
+            border-bottom: 4px solid transparent;
+            position: relative;
+        }
+        
+        .tab-button::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #0055A4, #0066CC);
+            transition: width 0.3s ease;
+        }
+        
+        .tab-button:hover {
+            background: rgba(0,85,164,0.08);
+            color: #0055A4;
+        }
+        
+        .tab-button:hover::before {
+            width: 100%;
+        }
+        
+        .tab-button.active {
+            background: linear-gradient(135deg, #0055A4 0%, #0066CC 100%);
+            color: white;
+            border-bottom-color: #EF4135;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.15);
+        }
+        
+        .tab-button.active::before {
+            width: 100%;
+            background: #EF4135;
+        }
+        
+        .tabs-content {
+            background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,251,0.98) 100%);
+            border-radius: 0 0 20px 20px;
+            padding: 40px;
+            box-shadow: 0 15px 40px rgba(0,85,164,0.15);
+            border: 2px solid rgba(0,85,164,0.1);
+            border-top: none;
+            min-height: 400px;
+        }
+        
+        .tab-panel {
+            display: none;
+        }
+        
+        .tab-panel.active {
+            display: block;
+            animation: fadeInTab 0.4s ease-out;
+        }
+        
+        @keyframes fadeInTab {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Fiches de juge - CONSERVÉES IDENTIQUES */
+        .judge-sheet-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            border-left: 6px solid #667eea;
+            transition: all 0.3s ease;
+        }
+        
+        .judge-sheet-container.connected {
+            border-left-color: #27ae60;
+            background: linear-gradient(135deg, rgba(39,174,96,0.05) 0%, rgba(255,255,255,1) 100%);
+        }
+        
+        .judge-sheet-container.updating {
+            animation: updateFlash 1s ease-in-out;
+            border-left-color: #f39c12;
+            box-shadow: 0 20px 50px rgba(243,156,18,0.3);
+        }
+        
+        .judge-sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .judge-sheet-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e74c3c;
+        }
+        
+        .status-indicator.connected {
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+
+        /* Tableaux - CONSERVÉS IDENTIQUES */
+        .recap-table, .scoring-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 12px;
+            table-layout: fixed;
+            border: 2px solid #4a4a4a;
+        }
+        
+        .recap-table th,
+        .recap-table td,
+        .scoring-table th,
+        .scoring-table td {
+            border: 2px solid #4a4a4a;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .recap-table th,
+        .scoring-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .corner-red {
+            background-color: #ffcdd2;
+        }
+        
+        .corner-blue {
+            background-color: #bbdefb;
+        }
+        
+        .score-select {
+            width: 60px;
+            padding: 5px;
+            text-align: center;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .warning-cell, .compte-cell {
+            position: relative;
+            min-width: 60px;
+            height: 40px;
+            font-weight: bold;
+            font-size: 16px;
+            letter-spacing: 3px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .abandon-cell {
+            padding: 5px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            background-color: #ffeb3b !important;
+            border: 2px solid #f57c00;
+            transition: background-color 0.3s;
+            user-select: none;
+        }
+        
+        .abandon-cell.abandoned {
+            background-color: #f44336 !important;
+            color: white;
+            animation: blink 1s infinite;
+        }
+
+        /* Boutons améliorés */
+        .button-primary {
+            background: linear-gradient(135deg, #0055A4 0%, #0066CC 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 15px;
+            box-shadow: 0 6px 20px rgba(0,85,164,0.3);
+            margin: 5px;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+        }
+        
+        .button-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0,85,164,0.4);
+        }
+        
+        .button-success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }
+        
+        .button-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        }
+        
+        .button-danger {
+            background: linear-gradient(135deg, #EF4135 0%, #c0392b 100%);
+        }
+        
+        .reset-button {
+            background-color: #ff6f00;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        
+        .undo-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        
+        .undo-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* Messages améliorés */
+        .message {
+            padding: 25px;
+            border-radius: 18px;
+            margin: 25px 0;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .message.success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 3px solid #28a745;
+            color: #155724;
+        }
+        
+        .message.error {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            border: 3px solid #dc3545;
+            color: #721c24;
+        }
+        
+        .message.warning {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 3px solid #ffc107;
+            color: #856404;
+        }
+        
+        .message.info {
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            border: 3px solid #0055A4;
+            color: #0c5460;
+        }
+
+        /* Page d'accueil améliorée */
+        .content-area {
+            background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,251,0.98) 100%);
+            border-radius: 25px;
+            padding: 50px;
+            box-shadow: 0 15px 40px rgba(0,85,164,0.15);
+            border: 2px solid rgba(0,85,164,0.1);
+            min-height: 400px;
+        }
+
+        .welcome-section {
+            text-align: center;
+            padding: 60px 30px;
+        }
+
+        .welcome-section h2 {
+            color: #0055A4;
+            font-size: 32px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .welcome-section p {
+            margin-top: 20px;
+            font-size: 20px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;

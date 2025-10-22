@@ -1,0 +1,700 @@
+                state.scores[`red${i}`] = redElement ? redElement.value : '';
+                state.scores[`blue${i}`] = blueElement ? blueElement.value : '';
+            }
+            
+            actionHistory.push(state);
+            
+            // Limiter l'historique à 50 actions
+            if (actionHistory.length > 50) {
+                actionHistory.shift();
+            }
+            
+            // Activer le bouton annuler
+            const undoButton = safeGetElement('judgeUndoButton');
+            if (undoButton) undoButton.disabled = false;
+        }
+
+        function validateAndUpdateJudgeScores(round) {
+            const redSelect = safeGetElement(`judgeRed${round}`);
+            const blueSelect = safeGetElement(`judgeBlue${round}`);
+            
+            if (!redSelect || !blueSelect) return;
+            
+            const redValue = parseInt(redSelect.value) || 0;
+            const blueValue = parseInt(blueSelect.value) || 0;
+            
+            // Si un des deux a la valeur 3, l'autre ne peut pas l'avoir
+            if (redValue === 3 && blueValue === 3) {
+                showNotification(`Reprise ${round}: Les deux tireurs ne peuvent pas avoir la note 3 simultanément!`, 'error');
+                
+                // Réinitialiser la dernière valeur modifiée
+                if (document.activeElement === redSelect) {
+                    redSelect.value = '';
+                } else {
+                    blueSelect.value = '';
+                }
+                return;
+            }
+            
+            // Si les deux valeurs sont définies, vérifier les combinaisons valides
+            if (redValue && blueValue) {
+                const isValidCombination = 
+                    (redValue === 3 && blueValue === 2) ||
+                    (redValue === 2 && blueValue === 3) ||
+                    (redValue === 3 && blueValue === 1) ||
+                    (redValue === 1 && blueValue === 3) ||
+                    (redValue === 2 && blueValue === 2);
+                
+                if (!isValidCombination) {
+                    showNotification(`Reprise ${round}: Seuls les scores 3-2, 3-1 ou 2-2 sont autorisés!`, 'error');
+                    
+                    // Réinitialiser la dernière valeur modifiée
+                    if (document.activeElement === redSelect) {
+                        redSelect.value = '';
+                    } else {
+                        blueSelect.value = '';
+                    }
+                    return;
+                }
+            }
+            
+            saveJudgeState();
+            calculateJudgeTotals();
+            lockJudgeCompletedRounds();
+            
+            // Synchroniser avec le délégué
+            syncJudgeData('score_change', { round: round });
+        }
+
+        function toggleJudgeWarning(color, round) {
+            saveJudgeState();
+            
+            // Calculer le total actuel des avertissements pour ce tireur
+            let currentTotal = 0;
+            for (let r in warnings[color]) {
+                currentTotal += warnings[color][r] || 0;
+            }
+            
+            if (!warnings[color][round]) {
+                warnings[color][round] = 0;
+            }
+            
+            const currentCellWarnings = warnings[color][round];
+            
+            // Cycle: 0 -> 1 -> 2 -> 3 -> 0
+            if (currentCellWarnings < 3) {
+                // Vérifier si on peut ajouter un avertissement
+                if (currentTotal < 3) {
+                    warnings[color][round]++;
+                } else {
+                    showNotification('Maximum 3 avertissements par tireur sur l\'ensemble de la rencontre!', 'error');
+                    undoLastJudgeAction();
+                    return;
+                }
+            } else {
+                // Réinitialiser à 0
+                warnings[color][round] = 0;
+            }
+            
+            updateJudgeWarningDisplay(color, round);
+            checkJudgeDisqualification(color);
+            calculateJudgeTotals();
+            
+            // Synchroniser
+            syncJudgeData('warning_toggle', { color: color, round: round });
+        }
+
+        function toggleJudgeCompte(color, round) {
+            if (!isCombat()) return;
+            
+            saveJudgeState();
+            
+            // Calculer le total actuel des comptes pour ce tireur
+            let currentTotal = 0;
+            for (let r in comptes[color]) {
+                currentTotal += comptes[color][r] || 0;
+            }
+            
+            if (!comptes[color][round]) {
+                comptes[color][round] = 0;
+            }
+            
+            const currentCellComptes = comptes[color][round];
+            
+            // Cycle: 0 -> 1 -> 2 -> 3 -> 0
+            if (currentCellComptes < 3) {
+                // Vérifier si on peut ajouter un compte
+                if (currentTotal < 3) {
+                    comptes[color][round]++;
+                } else {
+                    showNotification('Maximum 3 comptes par tireur sur l\'ensemble de la rencontre!', 'error');
+                    undoLastJudgeAction();
+                    return;
+                }
+            } else {
+                // Réinitialiser à 0
+                comptes[color][round] = 0;
+            }
+            
+            updateJudgeCompteDisplay(color, round);
+            checkJudgeDisqualification(color);
+            calculateJudgeTotals();
+            
+            // Synchroniser
+            syncJudgeData('compte_toggle', { color: color, round: round });
+        }
+
+        function toggleJudgeAbandon(color) {
+            saveJudgeState();
+            
+            const button = safeGetElement(`judgeAbandon${color.charAt(0).toUpperCase() + color.slice(1)}`);
+            if (!button) return;
+            
+            const opponentColor = color === 'red' ? 'blue' : 'red';
+            
+            if (!abandons[color]) {
+                // Confirmer l'abandon
+                const fighterName = app.data.fighters[color] || `Tireur ${color === 'red' ? 'rouge' : 'bleu'}`;
+                
+                if (confirm(`Confirmer l'abandon de ${fighterName} ?`)) {
+                    abandons[color] = true;
+                    button.textContent = 'ABANDONNÉ';
+                    button.classList.add('abandoned');
+                    
+                    // Désactiver tous les contrôles de scoring
+                    document.querySelectorAll('.score-select').forEach(select => {
+                        select.disabled = true;
+                    });
+                    document.querySelectorAll('.warning-cell').forEach(cell => cell.style.pointerEvents = 'none');
+                    document.querySelectorAll('.compte-cell').forEach(cell => cell.style.pointerEvents = 'none');
+                    document.querySelectorAll('.score-input').forEach(input => input.disabled = true);
+                    
+                    // Afficher le message d'abandon
+                    const opponentName = app.data.fighters[opponentColor] || `Tireur ${opponentColor === 'red' ? 'rouge' : 'bleu'}`;
+                    const abandonMessage = safeGetElement('judgeAbandonMessage');
+                    const abandonText = safeGetElement('judgeAbandonText');
+                    
+                    if (abandonMessage) abandonMessage.style.display = 'block';
+                    if (abandonText) abandonText.textContent = `${fighterName} a abandonné. ${opponentName} est déclaré(e) vainqueur!`;
+                    
+                    // Mettre à jour la décision immédiatement
+                    updateJudgeDecision();
+                    
+                    // Synchroniser
+                    syncJudgeData('abandon_toggle', { color: color });
+                } else {
+                    // Si l'utilisateur annule, annuler l'état sauvegardé
+                    undoLastJudgeAction();
+                }
+            } else {
+                // Annuler l'abandon
+                abandons[color] = false;
+                button.textContent = 'ABANDON';
+                button.classList.remove('abandoned');
+                
+                // Réactiver les contrôles
+                unlockAllJudgeRounds();
+                lockJudgeCompletedRounds();
+                document.querySelectorAll('.warning-cell').forEach(cell => cell.style.pointerEvents = 'auto');
+                document.querySelectorAll('.compte-cell').forEach(cell => cell.style.pointerEvents = 'auto');
+                document.querySelectorAll('.score-input').forEach(input => input.disabled = false);
+                
+                // Cacher le message d'abandon
+                const abandonMessage = safeGetElement('judgeAbandonMessage');
+                if (abandonMessage) abandonMessage.style.display = 'none';
+                
+                // Recalculer les totaux
+                calculateJudgeTotals();
+                
+                // Synchroniser
+                syncJudgeData('abandon_toggle', { color: color });
+            }
+        }
+
+        function validateJudgeBonus() {
+            saveJudgeState();
+            
+            const redBonus = safeGetElement('judgeRedBonus');
+            const blueBonus = safeGetElement('judgeBlueBonus');
+            
+            if (!redBonus || !blueBonus) return;
+            
+            redBonus.classList.remove('error', 'bonus-required');
+            blueBonus.classList.remove('error', 'bonus-required');
+            
+            const redValue = parseInt(redBonus.value) || 0;
+            const blueValue = parseInt(blueBonus.value) || 0;
+            
+            if (redValue === 1 && blueValue === 1) {
+                redBonus.classList.add('error');
+                blueBonus.classList.add('error');
+                showNotification('Le bonus ne peut être attribué qu\'à un seul coin!', 'error');
+                
+                // Annuler la dernière action
+                undoLastJudgeAction();
+                return;
+            }
+            
+            calculateJudgeTotals();
+            
+            // Synchroniser
+            syncJudgeData('bonus_change');
+        }
+
+        function updateJudgeWarningDisplay(color, round) {
+            const cell = safeGetElement(`judge${color.charAt(0).toUpperCase() + color.slice(1)}AvtCell${round}`);
+            if (!cell) return;
+            
+            const count = warnings[color][round] || 0;
+            
+            if (count === 0) {
+                cell.textContent = '';
+                cell.classList.remove('full');
+            } else {
+                cell.textContent = 'A'.repeat(count);
+                if (count >= 3) {
+                    cell.classList.add('full');
+                } else {
+                    cell.classList.remove('full');
+                }
+            }
+        }
+
+        function updateJudgeCompteDisplay(color, round) {
+            const cell = safeGetElement(`judge${color.charAt(0).toUpperCase() + color.slice(1)}CpteCell${round}`);
+            if (!cell) return;
+            
+            const count = comptes[color][round] || 0;
+            
+            if (count === 0) {
+                cell.textContent = '';
+                cell.classList.remove('full');
+            } else {
+                cell.textContent = 'C'.repeat(count);
+                if (count >= 3) {
+                    cell.classList.add('full');
+                } else {
+                    cell.classList.remove('full');
+                }
+            }
+        }
+
+        function checkJudgeDisqualification(color) {
+            let totalWarnings = 0;
+            let totalComptes = 0;
+            
+            for (let round in warnings[color]) {
+                totalWarnings += warnings[color][round] || 0;
+            }
+            
+            if (isCombat()) {
+                for (let round in comptes[color]) {
+                    totalComptes += comptes[color][round] || 0;
+                }
+            }
+            
+            if (totalWarnings >= 3 || totalComptes >= 3) {
+                const fighterName = app.data.fighters[color] || `Tireur ${color === 'red' ? 'rouge' : 'bleu'}`;
+                const opponentColor = color === 'red' ? 'blue' : 'red';
+                const opponentName = app.data.fighters[opponentColor] || `Tireur ${opponentColor === 'red' ? 'rouge' : 'bleu'}`;
+                
+                let reason, decisionText, messageTitle;
+                
+                if (totalComptes >= 3) {
+                    reason = '3 comptes';
+                    decisionText = `VICTOIRE ${opponentColor === 'red' ? 'COIN ROUGE' : 'COIN BLEU'} PAR HORS COMBAT - ${opponentName}`;
+                    messageTitle = 'HORS COMBAT';
+                } else {
+                    reason = '3 avertissements';
+                    decisionText = `VICTOIRE ${opponentColor === 'red' ? 'COIN ROUGE' : 'COIN BLEU'} PAR DISQUALIFICATION - ${opponentName}`;
+                    messageTitle = 'DISQUALIFICATION';
+                }
+                
+                const disqualificationMessage = safeGetElement('judgeDisqualificationMessage');
+                const disqualificationText = safeGetElement('judgeDisqualificationText');
+                
+                if (disqualificationMessage) {
+                    disqualificationMessage.style.display = 'block';
+                    const titleElement = disqualificationMessage.querySelector('h2');
+                    if (titleElement) titleElement.textContent = messageTitle;
+                }
+                
+                if (disqualificationText) {
+                    disqualificationText.textContent = `${fighterName} est ${totalComptes >= 3 ? 'déclaré(e) HORS COMBAT' : 'disqualifié(e)'} pour ${reason}. ${opponentName} est déclaré(e) vainqueur!`;
+                }
+                
+                // Désactiver tous les selects
+                document.querySelectorAll('.score-select').forEach(select => {
+                    select.disabled = true;
+                });
+                
+                // Mettre à jour la décision
+                const decisionElement = safeGetElement('judgeDecision');
+                if (decisionElement) {
+                    decisionElement.textContent = decisionText;
+                    decisionElement.style.color = opponentColor === 'red' ? '#dc3545' : '#007bff';
+                }
+                
+                // Synchroniser
+                syncJudgeData('disqualification', { color: color, reason: reason });
+            } else {
+                const disqualificationMessage = safeGetElement('judgeDisqualificationMessage');
+                if (disqualificationMessage) disqualificationMessage.style.display = 'none';
+                
+                // Réactiver les selects si pas de disqualification
+                if (!abandons.red && !abandons.blue) {
+                    unlockAllJudgeRounds();
+                    lockJudgeCompletedRounds();
+                }
+            }
+        }
+
+        function calculateJudgeTotals() {
+            let redScore = 0;
+            let blueScore = 0;
+            let redWarningTotal = 0;
+            let blueWarningTotal = 0;
+            let redCompteTotal = 0;
+            let blueCompteTotal = 0;
+            
+            // Calculer les scores des reprises actives uniquement
+            for (let i = 1; i <= activeRounds; i++) {
+                const redValue = parseInt(safeGetElement(`judgeRed${i}`)?.value) || 0;
+                const blueValue = parseInt(safeGetElement(`judgeBlue${i}`)?.value) || 0;
+                
+                redScore += redValue;
+                blueScore += blueValue;
+            }
+            
+            // Calculer les avertissements
+            for (let round in warnings.red) {
+                if (round <= activeRounds) {
+                    redWarningTotal += warnings.red[round] || 0;
+                }
+            }
+            for (let round in warnings.blue) {
+                if (round <= activeRounds) {
+                    blueWarningTotal += warnings.blue[round] || 0;
+                }
+            }
+            
+            // Calculer les comptes (pour les combats seulement)
+            if (isCombat()) {
+                for (let round in comptes.red) {
+                    if (round <= activeRounds) {
+                        redCompteTotal += comptes.red[round] || 0;
+                    }
+                }
+                for (let round in comptes.blue) {
+                    if (round <= activeRounds) {
+                        blueCompteTotal += comptes.blue[round] || 0;
+                    }
+                }
+            }
+            
+            // Afficher sous-total 1
+            const redSubtotal1 = safeGetElement('judgeRedSubtotal1');
+            const blueSubtotal1 = safeGetElement('judgeBlueSubtotal1');
+            if (redSubtotal1) redSubtotal1.textContent = redScore;
+            if (blueSubtotal1) blueSubtotal1.textContent = blueScore;
+            
+            // Afficher avertissements (valeur négative)
+            const redWarnings = safeGetElement('judgeRedWarnings');
+            const blueWarnings = safeGetElement('judgeBlueWarnings');
+            if (redWarnings) redWarnings.textContent = redWarningTotal > 0 ? -redWarningTotal : 0;
+            if (blueWarnings) blueWarnings.textContent = blueWarningTotal > 0 ? -blueWarningTotal : 0;
+            
+            // Afficher comptes (valeur négative, pour les combats seulement)
+            if (isCombat()) {
+                const redComptes = safeGetElement('judgeRedComptes');
+                const blueComptes = safeGetElement('judgeBlueComptes');
+                if (redComptes) redComptes.textContent = redCompteTotal > 0 ? -redCompteTotal : 0;
+                if (blueComptes) blueComptes.textContent = blueCompteTotal > 0 ? -blueCompteTotal : 0;
+            }
+            
+            // Calculer sous-total 2
+            const redSubtotal2 = redScore - redWarningTotal - redCompteTotal;
+            const blueSubtotal2 = blueScore - blueWarningTotal - blueCompteTotal;
+            const redSubtotal2Element = safeGetElement('judgeRedSubtotal2');
+            const blueSubtotal2Element = safeGetElement('judgeBlueSubtotal2');
+            if (redSubtotal2Element) redSubtotal2Element.textContent = redSubtotal2;
+            if (blueSubtotal2Element) blueSubtotal2Element.textContent = blueSubtotal2;
+            
+            // Vérifier l'égalité et forcer l'attribution d'un bonus
+            const redBonus = safeGetElement('judgeRedBonus');
+            const blueBonus = safeGetElement('judgeBlueBonus');
+            const redBonusValue = parseInt(redBonus?.value) || 0;
+            const blueBonusValue = parseInt(blueBonus?.value) || 0;
+            
+            // Vérifier si toutes les reprises sont complétées
+            const allRoundsCompleted = areAllJudgeRoundsCompleted();
+            
+            const equalityWarning = safeGetElement('judgeEqualityWarning');
+            if (allRoundsCompleted && redSubtotal2 === blueSubtotal2 && redBonusValue === 0 && blueBonusValue === 0 && !abandons.red && !abandons.blue) {
+                // Égalité détectée - afficher l'avertissement et mettre en évidence les bonus
+                if (equalityWarning) equalityWarning.style.display = 'block';
+                if (redBonus) redBonus.classList.add('bonus-required');
+                if (blueBonus) blueBonus.classList.add('bonus-required');
+            } else {
+                // Masquer l'avertissement d'égalité
+                if (equalityWarning) equalityWarning.style.display = 'none';
+                if (redBonus) redBonus.classList.remove('bonus-required');
+                if (blueBonus) blueBonus.classList.remove('bonus-required');
+            }
+            
+            // Calculer totaux finaux
+            const redTotal = redSubtotal2 + redBonusValue;
+            const blueTotal = blueSubtotal2 + blueBonusValue;
+            
+            const redTotalElement = safeGetElement('judgeRedTotal');
+            const blueTotalElement = safeGetElement('judgeBlueTotal');
+            if (redTotalElement) redTotalElement.textContent = redTotal;
+            if (blueTotalElement) blueTotalElement.textContent = blueTotal;
+            
+            // Déterminer la décision
+            const disqualificationMessage = safeGetElement('judgeDisqualificationMessage');
+            const abandonMessage = safeGetElement('judgeAbandonMessage');
+            
+            if ((!disqualificationMessage || disqualificationMessage.style.display === 'none') && 
+                (!abandonMessage || abandonMessage.style.display === 'none')) {
+                updateJudgeDecision(redTotal, blueTotal, allRoundsCompleted);
+            }
+        }
+
+        function updateJudgeDecision(redTotal, blueTotal, allRoundsCompleted) {
+            const decisionElement = safeGetElement('judgeDecision');
+            if (!decisionElement) return;
+            
+            const redName = app.data.fighters.red || 'Tireur rouge';
+            const blueName = app.data.fighters.blue || 'Tireur bleu';
+            
+            // Ne pas afficher de résultat tant que toutes les reprises ne sont pas complétées
+            if (!allRoundsCompleted && !abandons.red && !abandons.blue) {
+                decisionElement.textContent = 'En cours... (toutes les reprises doivent être notées)';
+                decisionElement.style.color = '#6c757d';
+                return;
+            }
+            
+            // Si abandon, la décision a déjà été mise à jour
+            if (abandons.red || abandons.blue) {
+                return;
+            }
+            
+            // Vérifier l'égalité
+            if (redTotal === blueTotal) {
+                decisionElement.textContent = 'ÉGALITÉ INTERDITE - Attribuer un bonus !';
+                decisionElement.style.color = '#ffc107';
+                return;
+            }
+            
+            // Afficher la décision finale
+            if (redTotal > blueTotal) {
+                decisionElement.textContent = `VICTOIRE COIN ROUGE - ${redName}`;
+                decisionElement.style.color = '#dc3545';
+            } else if (blueTotal > redTotal) {
+                decisionElement.textContent = `VICTOIRE COIN BLEU - ${blueName}`;
+                decisionElement.style.color = '#007bff';
+            }
+        }
+
+        function areAllJudgeRoundsCompleted() {
+            if (abandons.red || abandons.blue) {
+                return true;
+            }
+            
+            for (let i = 1; i <= activeRounds; i++) {
+                const redValue = safeGetElement(`judgeRed${i}`)?.value;
+                const blueValue = safeGetElement(`judgeBlue${i}`)?.value;
+                if (!redValue || !blueValue) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function isJudgeRoundComplete(round) {
+            const redValue = safeGetElement(`judgeRed${round}`)?.value;
+            const blueValue = safeGetElement(`judgeBlue${round}`)?.value;
+            return redValue !== '' && blueValue !== '';
+        }
+
+        function lockJudgeCompletedRounds() {
+            for (let i = 1; i <= activeRounds; i++) {
+                if (isJudgeRoundComplete(i)) {
+                    const redSelect = safeGetElement(`judgeRed${i}`);
+                    const blueSelect = safeGetElement(`judgeBlue${i}`);
+                    
+                    if (redSelect && blueSelect) {
+                        redSelect.disabled = true;
+                        redSelect.classList.add('locked');
+                        blueSelect.disabled = true;
+                        blueSelect.classList.add('locked');
+                    }
+                }
+            }
+        }
+
+        function unlockAllJudgeRounds() {
+            for (let i = 1; i <= 5; i++) {
+                const redSelect = safeGetElement(`judgeRed${i}`);
+                const blueSelect = safeGetElement(`judgeBlue${i}`);
+                if (redSelect && blueSelect) {
+                    redSelect.disabled = false;
+                    redSelect.classList.remove('locked');
+                    blueSelect.disabled = false;
+                    blueSelect.classList.remove('locked');
+                }
+            }
+        }
+
+        function undoLastJudgeAction() {
+            if (actionHistory.length === 0) {
+                showNotification('❌ Aucune action à annuler', 'warning');
+                return;
+            }
+            
+            const previousState = actionHistory.pop();
+            
+            // Restaurer les avertissements et comptes
+            Object.assign(warnings, previousState.warnings);
+            Object.assign(comptes, previousState.comptes);
+            
+            // Restaurer les abandons
+            Object.assign(abandons, previousState.abandons);
+            
+            // Restaurer l'interface des abandons
+            ['red', 'blue'].forEach(color => {
+                const button = safeGetElement(`judgeAbandon${color.charAt(0).toUpperCase() + color.slice(1)}`);
+                if (button) {
+                    if (abandons[color]) {
+                        button.textContent = 'ABANDONNÉ';
+                        button.classList.add('abandoned');
+                    } else {
+                        button.textContent = 'ABANDON';
+                        button.classList.remove('abandoned');
+                    }
+                }
+            });
+            
+            // Déverrouiller tous les selects existants
+            unlockAllJudgeRounds();
+            
+            // Restaurer l'affichage des avertissements et comptes
+            for (let color of ['red', 'blue']) {
+                for (let i = 1; i <= 5; i++) {
+                    updateJudgeWarningDisplay(color, i);
+                    updateJudgeCompteDisplay(color, i);
+                }
+            }
+            
+            // Restaurer les scores
+            for (let key in previousState.scores) {
+                const element = safeGetElement(`judge${key.charAt(0).toUpperCase() + key.slice(1)}`);
+                if (element) element.value = previousState.scores[key];
+            }
+            
+            // Restaurer les bonus
+            const redBonus = safeGetElement('judgeRedBonus');
+            const blueBonus = safeGetElement('judgeBlueBonus');
+            if (redBonus) redBonus.value = previousState.bonus.red;
+            if (blueBonus) blueBonus.value = previousState.bonus.blue;
+            
+            // Recalculer les totaux
+            calculateJudgeTotals();
+            
+            // Vérifier la disqualification
+            checkJudgeDisqualification('red');
+            checkJudgeDisqualification('blue');
+            
+            // Re-verrouiller les reprises complètes après restauration
+            lockJudgeCompletedRounds();
+            
+            // Désactiver le bouton si plus d'historique
+            if (actionHistory.length === 0) {
+                const undoButton = safeGetElement('judgeUndoButton');
+                if (undoButton) undoButton.disabled = true;
+            }
+            
+            showNotification('↶ Dernière action annulée', 'info');
+        }
+
+        function resetJudgeFormData() {
+            try {
+                // 1. Réinitialiser les données CPTE
+                for (let color of ['red', 'blue']) {
+                    warnings[color] = {};
+                    comptes[color] = {};
+                }
+                abandons.red = false;
+                abandons.blue = false;
+                
+                // 2. Réinitialiser l'historique
+                actionHistory = [];
+                const undoButton = safeGetElement('judgeUndoButton');
+                if (undoButton) undoButton.disabled = true;
+                
+                // 3. Déverrouiller tous les selects
+                unlockAllJudgeRounds();
+                
+                // 4. Réinitialiser tous les selects de scores
+                for (let i = 1; i <= 5; i++) {
+                    const redSelect = safeGetElement(`judgeRed${i}`);
+                    const blueSelect = safeGetElement(`judgeBlue${i}`);
+                    if (redSelect) {
+                        redSelect.value = '';
+                        redSelect.disabled = false;
+                        redSelect.classList.remove('locked');
+                    }
+                    if (blueSelect) {
+                        blueSelect.value = '';
+                        blueSelect.disabled = false;
+                        blueSelect.classList.remove('locked');
+                    }
+                }
+                
+                // 5. Réinitialiser les inputs bonus
+                const redBonus = safeGetElement('judgeRedBonus');
+                const blueBonus = safeGetElement('judgeBlueBonus');
+                if (redBonus) {
+                    redBonus.value = '0';
+                    redBonus.disabled = false;
+                    redBonus.classList.remove('error', 'bonus-required');
+                }
+                if (blueBonus) {
+                    blueBonus.value = '0';
+                    blueBonus.disabled = false;
+                    blueBonus.classList.remove('error', 'bonus-required');
+                }
+                
+                // 6. Réinitialiser tous les totaux
+                const totalElements = [
+                    'judgeRedSubtotal1', 'judgeBlueSubtotal1', 'judgeRedWarnings', 'judgeBlueWarnings',
+                    'judgeRedSubtotal2', 'judgeBlueSubtotal2', 'judgeRedTotal', 'judgeBlueTotal',
+                    'judgeRedComptes', 'judgeBlueComptes'
+                ];
+                totalElements.forEach(id => {
+                    const element = safeGetElement(id);
+                    if (element) element.textContent = '0';
+                });
+                
+                // 7. Réinitialiser la décision
+                const decision = safeGetElement('judgeDecision');
+                if (decision) {
+                    decision.textContent = '-';
+                    decision.style.color = '#000';
+                }
+                
+                // 8. Réinitialiser les boutons d'abandon
+                const abandonRed = safeGetElement('judgeAbandonRed');
+                const abandonBlue = safeGetElement('judgeAbandonBlue');
+                
+                if (abandonRed) {
+                    abandonRed.textContent = 'ABANDON';
+                    abandonRed.classList.remove('abandoned');
+                }
+                if (abandonBlue) {
+                    abandonBlue.textContent = 'ABANDON';
+                    abandonBlue.classList.remove('abandoned');
+                }
+                
+                // 9. Réinitialiser l'affichage des avertissements et comptes
