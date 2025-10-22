@@ -146,8 +146,10 @@ def check_fusion_file(filepath):
     print(f"\n🔢 Statistiques de code:")
     print(f"  - Règles CSS (approx.): {css_matches}")
     print(f"  - Fonctions JavaScript: {js_functions}")
-    print(f"  - Éléments HTML avec ID: {content.count('id=\"')}")
-    print(f"  - Éléments avec classe: {content.count('class=\"')}")
+    id_count = content.count('id="')
+    class_count = content.count('class="')
+    print(f"  - Éléments HTML avec ID: {id_count}")
+    print(f"  - Éléments avec classe: {class_count}")
     
     if all_passed:
         print("\n🎉 SUCCÈS : Tous les éléments essentiels sont présents !")
